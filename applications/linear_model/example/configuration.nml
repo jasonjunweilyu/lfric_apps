@@ -23,6 +23,9 @@ vertical_limit='exponential',
 vertical_method='trapezoidal',
 vertical_sorting=.false.
 /
+&energy_correction
+  encorr_usage    = 'none'
+/
 &extrusion
 domain_top=10000.0,
 method='uniform',
@@ -59,7 +62,7 @@ rotating=.true.,
 shallow=.true.,
 si_momentum_equation=.false.,
 use_multires_coupling=.false.,
-use_physics=.false.,
+use_physics=.true.,
 use_wavedynamics=.true.,
 vector_invariant=.false.,
 /

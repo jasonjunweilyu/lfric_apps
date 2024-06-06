@@ -22,6 +22,7 @@ module tl_si_timestep_alg_mod
   use formulation_config_mod,      only: dlayer_on,                            &
                                          moisture_formulation,                 &
                                          moisture_formulation_dry,             &
+                                         use_physics,                          &
                                          use_wavedynamics,                     &
                                          si_momentum_equation,                 &
                                          exner_from_eos
@@ -89,6 +90,8 @@ module tl_si_timestep_alg_mod
   use update_prognostic_scalars_alg_mod, &
                                    only: update_prognostic_scalars_alg
   use mixing_alg_mod,              only: mixing_alg
+
+  use map_physics_fields_alg_mod,  only: map_physics_fields_alg
 
   ! Moisture species
   use mr_indices_mod,              only: nummr, imr_v, imr_cl
@@ -812,6 +815,16 @@ contains
     call mixing_alg(mr, state(igh_t),                             &
                     state(igh_u), visc_m, visc_h, derived_fields, &
                     state(igh_d), cast_dt )
+
+    ! Update derived variables for time level n+1
+    if (use_moisture) then
+      call tl_moist_dyn_factors_alg(moist_dyn, mr)
+    end if
+    if (use_physics) then
+      call map_physics_fields_alg(state(igh_u), state(igh_p), &
+                                  state(igh_d), state(igh_t), &
+                                  moist_dyn, derived_fields)
+    end if
 
     !--------------------------------------------------------------------
     ! Update fields held in the driver layer

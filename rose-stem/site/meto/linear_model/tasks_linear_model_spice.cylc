@@ -6,7 +6,7 @@
 {% do LOG.debug("Entered site/meto/linear_model/tasks_linear_model_spice.cylc") %}
 
 {% if task_ns.conf_name == "dcmip301-C24"  %}
-    {% do task_dict.update({"wallclock": 40}) %}
+    {% do task_dict.update({"wallclock": 60}) %}
 {% endif %}
 
 {% do LOG.debug("Finised in site/meto/linear_model/tasks_linear_model_spice.cylc") %}

@@ -151,9 +151,6 @@ module linear_step_mod
         call moisture_conservation_alg( rho,              &
                                         mr,               &
                                         'After timestep' )
-        if ( use_physics ) then
-          call log_event('use_physics not available for TL', LOG_LEVEL_ERROR)
-        end if
       end if
 
       if (write_minmax_tseries) call minmax_tseries(u, 'u', mesh)
