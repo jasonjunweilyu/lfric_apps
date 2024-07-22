@@ -105,7 +105,7 @@
         [[[directives]]]
             --partition=rhel7
             --time=00:15:00
-            --ntasks=6
+            --ntasks=1
             --mem-per-cpu=1G
             --export=NONE
 
