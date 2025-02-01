@@ -392,14 +392,6 @@ contains
           call log_event(log_scratch_space, LOG_LEVEL_ERROR)
         end if
 
-        if ( vertical_method(i) == split_method_ffsl .AND. ffsl_vertical_order(i) == 1    &
-            .AND. log_space(i) .AND. .NOT. reversible(i) ) then
-          write( log_scratch_space, '(A)') trim(field_names(i)) // ' variable ' // &
-            'is being transported with Nirvana as part of the FFSL scheme, ' // &
-            'so log_space must be .false.'
-          call log_event(log_scratch_space, LOG_LEVEL_ERROR)
-        end if
-
         if ( operators == operators_fem .and. enforce_min_value(i) ) then
           write( log_scratch_space, '(A)') trim(field_names(i)) // ' variable ' // &
             'is set to use the enforce_min_value option, but this cannot ' // &

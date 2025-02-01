@@ -40,7 +40,7 @@ private
 !> The type declaration for the kernel. Contains the metadata needed by the Psy layer
 type, public, extends(kernel_type) :: ffsl_flux_z_nirvana_kernel_type
   private
-  type(arg_type) :: meta_args(8) = (/                  &
+  type(arg_type) :: meta_args(9) = (/                  &
        arg_type(GH_FIELD,  GH_REAL,    GH_WRITE, W2v), & ! flux
        arg_type(GH_FIELD,  GH_REAL,    GH_READ,  W2v), & ! frac_wind
        arg_type(GH_FIELD,  GH_REAL,    GH_READ,  W2v), & ! dep pts
@@ -48,7 +48,8 @@ type, public, extends(kernel_type) :: ffsl_flux_z_nirvana_kernel_type
        arg_type(GH_FIELD,  GH_REAL,    GH_READ,  W3),  & ! dz
        arg_type(GH_FIELD,  GH_REAL,    GH_READ,  W3),  & ! detj
        arg_type(GH_SCALAR, GH_REAL,    GH_READ),       & ! dt
-       arg_type(GH_SCALAR, GH_INTEGER, GH_READ)        & ! monotone
+       arg_type(GH_SCALAR, GH_INTEGER, GH_READ),       & ! monotone
+       arg_type(GH_SCALAR, GH_LOGICAL, GH_READ)        & ! log_space
        /)
   integer :: operates_on = CELL_COLUMN
 contains
@@ -72,6 +73,8 @@ contains
 !> @param[in]     detj      Volume of cells
 !> @param[in]     dt        Time step
 !> @param[in]     monotone  Monotonicity option to use
+!> @param[in]     log_space Switch to use natural logarithmic space
+!!                          for edge interpolation
 !> @param[in]     ndf_w2v   Number of degrees of freedom for W2v per cell
 !> @param[in]     undf_w2v  Number of unique degrees of freedom for W2v
 !> @param[in]     map_w2v   The dofmap for the W2v cell at the base of the column
@@ -87,6 +90,7 @@ subroutine ffsl_flux_z_nirvana_code( nlayers,   &
                                      detj,      &
                                      dt,        &
                                      monotone,  &
+                                     log_space, &
                                      ndf_w2v,   &
                                      undf_w2v,  &
                                      map_w2v,   &
@@ -94,11 +98,12 @@ subroutine ffsl_flux_z_nirvana_code( nlayers,   &
                                      undf_w3,   &
                                      map_w3 )
 
-  use subgrid_vertical_support_mod, only: vertical_nirvana_recon,              &
-                                          vertical_nirvana_mono_relax,         &
-                                          vertical_nirvana_mono_strict,        &
-                                          vertical_nirvana_positive,           &
-                                          second_order_vertical_gradient
+  use subgrid_horizontal_support_mod, only: bound_field
+  use subgrid_vertical_support_mod,   only: vertical_ppm_recon,                  &
+                                            vertical_ppm_mono_relax,             &
+                                            vertical_ppm_mono_strict,            &
+                                            vertical_ppm_positive,               &
+                                            third_order_vertical_edge
 
   implicit none
 
@@ -118,18 +123,19 @@ subroutine ffsl_flux_z_nirvana_code( nlayers,   &
   integer(kind=i_def), intent(in)    :: map_w2v(ndf_w2v)
   real(kind=r_tran),   intent(in)    :: dt
   integer(kind=i_def), intent(in)    :: monotone
+  logical(kind=l_def), intent(in)    :: log_space
 
   ! Internal variables
   integer(kind=i_def) :: k, i, w2v_idx, w3_idx
   integer(kind=i_def) :: int_displacement, sign_displacement
   integer(kind=i_def) :: dep_cell_idx, sign_offset
   integer(kind=i_def) :: lowest_whole_cell, highest_whole_cell
-  integer(kind=i_def) :: lower_cell, higher_cell
+  integer(kind=i_def) :: local_cell_idx
 
   real(kind=r_tran)   :: displacement, frac_dist
   real(kind=r_tran)   :: reconstruction, mass_whole_cells
-  real(kind=r_tran)   :: edge_gradient(0:nlayers)
-  real(kind=r_tran)   :: field_mono_stencil(3)
+  real(kind=r_tran)   :: edge_above(0:nlayers-1), edge_below(0:nlayers-1)
+  real(kind=r_tran)   :: log_field(3)
 
   w3_idx = map_w3(1)
   w2v_idx = map_w2v(1)
@@ -138,18 +144,91 @@ subroutine ffsl_flux_z_nirvana_code( nlayers,   &
   ! Reconstruct edge values
   ! ========================================================================== !
 
-  ! Gradient is zero at the bottom
-  edge_gradient(0) = 0.0_r_tran
+  ! Use Nirvana reconstruction for interpolated edge values
 
-  ! Build edge gradients on internal layers
-  do k = 1, nlayers - 1
-    call second_order_vertical_gradient(field(w3_idx+k-1 : w3_idx+k),          &
-                                        dz(w3_idx+k-1 : w3_idx+k),             &
-                                        edge_gradient(k))
-  end do
+  if (log_space) then ! --------------------------------------------------------
 
-  ! Gradient at the top is zero
-  edge_gradient(nlayers) = 0.0_r_tran
+    ! Bottom layer
+    local_cell_idx = 1
+    log_field(:) = LOG(MAX(ABS(field(w3_idx : w3_idx+2)), EPS_R_TRAN))
+    call third_order_vertical_edge(log_field, dz(w3_idx : w3_idx+2),           &
+                                   local_cell_idx, edge_above(0), edge_below(0))
+
+    ! Centre layers
+    local_cell_idx = 2
+    do k = 1, nlayers - 2
+      log_field(:) = LOG(MAX(ABS(field(w3_idx+k-1 : w3_idx+k+1)), EPS_R_TRAN))
+      call third_order_vertical_edge(log_field, dz(w3_idx+k-1 : w3_idx+k+1),   &
+                                     local_cell_idx, edge_above(k), edge_below(k))
+    end do
+
+    ! Top layer
+    local_cell_idx = 3
+    k = nlayers - 1
+    log_field(:) = LOG(MAX(ABS(field(w3_idx+k-2 : w3_idx+k)), EPS_R_TRAN))
+    call third_order_vertical_edge(log_field, dz(w3_idx+k-2 : w3_idx+k),       &
+                                   local_cell_idx, edge_above(k), edge_below(k))
+
+    ! Convert back from log space
+    edge_above(:) = EXP(edge_above(:))
+    edge_below(:) = EXP(edge_below(:))
+
+  else ! Not log-space ---------------------------------------------------------
+
+    ! Bottom layer
+    local_cell_idx = 1
+    call third_order_vertical_edge(field(w3_idx : w3_idx+2),                   &
+                                   dz(w3_idx : w3_idx+2),                      &
+                                   local_cell_idx, edge_above(0), edge_below(0))
+
+    ! Centre layers
+    local_cell_idx = 2
+    do k = 1, nlayers - 2
+      call third_order_vertical_edge(field(w3_idx+k-1 : w3_idx+k+1),           &
+                                     dz(w3_idx+k-1 : w3_idx+k+1),              &
+                                     local_cell_idx, edge_above(k), edge_below(k))
+    end do
+
+    ! Top layer
+    local_cell_idx = 3
+    k = nlayers - 1
+    call third_order_vertical_edge(field(w3_idx+k-2 : w3_idx+k),               &
+                                   dz(w3_idx+k-2 : w3_idx+k),                  &
+                                   local_cell_idx, edge_above(k), edge_below(k))
+
+  end if
+
+  ! ========================================================================== !
+  ! Apply monotonicity to edge reconstructions
+  ! ========================================================================== !
+
+  ! Loop again through edge reconstructions to limit them using neighbouring values
+
+  select case ( monotone )
+  case ( vertical_monotone_strict, vertical_monotone_relaxed )
+
+    ! Bottom edge
+    call bound_field( edge_below(0), field(w3_idx), field(w3_idx+1) )
+
+    ! Centre edges
+    do k = 1, nlayers-1
+      call bound_field( edge_above(k-1), field(w3_idx+k-1), field(w3_idx+k) )
+      call bound_field( edge_below(k), field(w3_idx+k-1), field(w3_idx+k) )
+    end do
+
+    ! Top edge
+    call bound_field( edge_above(nlayers-1), field(w3_idx+nlayers-2),          &
+                      field(w3_idx+nlayers-1) )
+
+  case ( vertical_monotone_positive )
+
+    ! Ensure all edges are positive
+    do k = 0, nlayers-1
+      edge_above(k) = max(edge_above(k),0.0_r_tran)
+      edge_below(k) = max(edge_below(k),0.0_r_tran)
+    end do
+
+  end select
 
   ! ========================================================================== !
   ! Build fluxes
@@ -184,45 +263,31 @@ subroutine ffsl_flux_z_nirvana_code( nlayers,   &
 
     ! ======================================================================== !
     ! Perform reversible PPM reconstruction for fractional part
-    call vertical_nirvana_recon(reconstruction, frac_dist,       &
-                                field(w3_idx + dep_cell_idx),    & ! field in dep cell
-                                edge_gradient(dep_cell_idx),     & ! edge below dep cell
-                                edge_gradient(dep_cell_idx + 1), & ! edge above dep cell
-                                dz(w3_idx + dep_cell_idx))
+    call vertical_ppm_recon(reconstruction, frac_dist,    &
+                            field(w3_idx + dep_cell_idx), &  ! field in dep cell
+                            edge_below(dep_cell_idx),     &  ! edge below dep cell
+                            edge_above(dep_cell_idx))        ! edge above dep cell
 
     ! ======================================================================== !
     ! Apply monotonicity for fractional part
     select case ( monotone )
     case ( vertical_monotone_strict )
-      lower_cell = MAX(0, dep_cell_idx - 1)
-      higher_cell = MIN(nlayers - 1, dep_cell_idx + 1)
-      field_mono_stencil(1) = field(w3_idx + lower_cell)
-      field_mono_stencil(2) = field(w3_idx + dep_cell_idx)
-      field_mono_stencil(3) = field(w3_idx + higher_cell)
-      call vertical_nirvana_mono_strict(reconstruction,                  &
-                                        field_mono_stencil,              &
-                                        edge_gradient(dep_cell_idx),     &
-                                        edge_gradient(dep_cell_idx + 1), &
-                                        dz(w3_idx + dep_cell_idx))
+      call vertical_ppm_mono_strict(reconstruction,                            &
+                                    field(w3_idx + dep_cell_idx),              &
+                                    edge_below(dep_cell_idx),                  &
+                                    edge_above(dep_cell_idx))
 
     case ( vertical_monotone_relaxed )
-      lower_cell = MAX(0, dep_cell_idx - 1)
-      higher_cell = MIN(nlayers - 1, dep_cell_idx + 1)
-      field_mono_stencil(1) = field(w3_idx + lower_cell)
-      field_mono_stencil(2) = field(w3_idx + dep_cell_idx)
-      field_mono_stencil(3) = field(w3_idx + higher_cell)
-      call vertical_nirvana_mono_relax(reconstruction, frac_dist,       &
-                                       field_mono_stencil,              &
-                                       edge_gradient(dep_cell_idx),     &
-                                       edge_gradient(dep_cell_idx + 1), &
-                                       dz(w3_idx + dep_cell_idx))
+      call vertical_ppm_mono_relax(reconstruction, frac_dist,                  &
+                                   field(w3_idx + dep_cell_idx),               &
+                                   edge_below(dep_cell_idx),                   &
+                                   edge_above(dep_cell_idx))
 
     case ( vertical_monotone_positive )
-      call vertical_nirvana_positive(reconstruction,                  &
-                                     field(w3_idx + dep_cell_idx),    &
-                                     edge_gradient(dep_cell_idx),     &
-                                     edge_gradient(dep_cell_idx + 1), &
-                                     dz(w3_idx + dep_cell_idx))
+      call vertical_ppm_positive(reconstruction, frac_dist,                    &
+                                 field(w3_idx + dep_cell_idx),                 &
+                                 edge_below(dep_cell_idx),                     &
+                                 edge_above(dep_cell_idx))
 
     end select
 

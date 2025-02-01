@@ -368,7 +368,8 @@ contains
                                                      dz_w3,                    &
                                                      detj_at_w3,               &
                                                      step_dt,                  &
-                                                     monotone) )
+                                                     monotone,                 &
+                                                     log_space) )
 
       end if
 

@@ -83,15 +83,16 @@ contains
   !------------------------------------------------------------------
 
   @test
-  subroutine second_order_vertical_gradient_test()
+  subroutine third_order_vertical_edge_test()
     use pFUnit_Mod
     use, intrinsic :: iso_fortran_env,  only: real64
-    use subgrid_vertical_support_mod,   only: second_order_vertical_gradient
+    use subgrid_vertical_support_mod,   only: third_order_vertical_edge
 
     implicit none
 
-    real(kind=r_tran) :: rho(1:2), dz(1:2), edge_value, tol
-    real(kind=r_tran) :: answer
+    real(kind=r_tran)   :: rho(1:3), dz(1:3), edge_below, edge_above, tol
+    real(kind=r_tran)   :: answer_below(1:3), answer_above(1:3)
+    integer(kind=i_def) :: cell
 
     ! Set tolerance
     if ( r_tran == real64 ) then
@@ -100,38 +101,100 @@ contains
       tol = 1.0e-6_r_tran
     end if
 
-    ! Test on uniform grid so gradient should be the difference
-    ! of the rho values
+    ! Test on uniform grid with linear function
     dz(1)  = 1.0_r_tran
     dz(2)  = 1.0_r_tran
+    dz(3)  = 1.0_r_tran
     rho(1) = 1.0_r_tran
-    rho(2) = 3.0_r_tran
+    rho(2) = 2.0_r_tran
+    rho(3) = 3.0_r_tran
 
-    answer = 2.0_r_tran
+    answer_below(1) = 0.5_r_tran
+    answer_below(2) = 1.5_r_tran
+    answer_below(3) = 2.5_r_tran
+    answer_above(1) = 1.5_r_tran
+    answer_above(2) = 2.5_r_tran
+    answer_above(3) = 3.5_r_tran
 
-    edge_value = 0.0_r_tran
-    call second_order_vertical_gradient(rho, &
-                                        dz,  &
-                                        edge_value)
+    ! Loop over all cells
+    do cell = 1, 3
 
-    @assertEqual(answer, edge_value, tol)
+      edge_above = 0.0_r_tran
+      edge_below = 0.0_r_tran
+      call third_order_vertical_edge(rho,        &
+                                     dz,         &
+                                     cell,       &
+                                     edge_above, &
+                                     edge_below)
 
-    ! Test on non-uniform grid needs weighted difference
+      @assertEqual(answer_above(cell), edge_above, tol)
+      @assertEqual(answer_below(cell), edge_below, tol)
+
+    end do
+
+    ! Test on non-uniform grid with linear function
     dz(1)  = 1.0_r_tran
     dz(2)  = 2.0_r_tran
+    dz(3)  = 2.0_r_tran
     rho(1) = 1.0_r_tran
     rho(2) = 4.0_r_tran
+    rho(3) = 8.0_r_tran
 
-    answer = 2.0_r_tran
+    answer_below(1) = 0.0_r_tran
+    answer_below(2) = 2.0_r_tran
+    answer_below(3) = 6.0_r_tran
+    answer_above(1) = 2.0_r_tran
+    answer_above(2) = 6.0_r_tran
+    answer_above(3) = 10.0_r_tran
 
-    edge_value = 0.0_r_tran
-    call second_order_vertical_gradient(rho, &
-                                        dz,  &
-                                        edge_value)
+    ! Loop over all cells
+    do cell = 1, 3
 
-    @assertEqual(answer, edge_value, tol)
+      edge_above = 0.0_r_tran
+      edge_below = 0.0_r_tran
+      call third_order_vertical_edge(rho,        &
+                                     dz,         &
+                                     cell,       &
+                                     edge_above, &
+                                     edge_below)
 
-  end subroutine second_order_vertical_gradient_test
+      @assertEqual(answer_above(cell), edge_above, tol)
+      @assertEqual(answer_below(cell), edge_below, tol)
+
+    end do
+
+    ! Test on non-uniform grid with non-linear function
+    dz(1)  = 1.0_r_tran
+    dz(2)  = 2.0_r_tran
+    dz(3)  = 3.0_r_tran
+    rho(1) = 1.0_r_tran
+    rho(2) = 16.0_r_tran
+    rho(3) = 81.0_r_tran
+
+    answer_below(1) = 0.0_r_tran
+    answer_below(2) = 10.0_r_tran/3.0_r_tran
+    answer_below(3) = 34.0_r_tran
+    answer_above(1) = 10.0_r_tran/3.0_r_tran
+    answer_above(2) = 34.0_r_tran
+    answer_above(3) = 140.0_r_tran
+
+    ! Loop over all cells
+    do cell = 1, 3
+
+      edge_above = 0.0_r_tran
+      edge_below = 0.0_r_tran
+      call third_order_vertical_edge(rho,        &
+                                     dz,         &
+                                     cell,       &
+                                     edge_above, &
+                                     edge_below)
+
+      @assertEqual(answer_above(cell), edge_above, tol)
+      @assertEqual(answer_below(cell), edge_below, tol)
+
+    end do
+
+  end subroutine third_order_vertical_edge_test
 
   !------------------------------------------------------------------
 
@@ -322,214 +385,6 @@ contains
     @assertEqual(answer_qm, edge_value, tol)
 
   end subroutine fourth_order_vertical_mono_test
-
-  !------------------------------------------------------------------
-
-  @test
-  subroutine vertical_nirvana_recon_test()
-    use pFUnit_Mod
-    use, intrinsic :: iso_fortran_env,  only: real64
-    use subgrid_vertical_support_mod,   only: vertical_nirvana_recon
-
-    implicit none
-
-    real(kind=r_tran)   :: rho, dz, tol
-    real(kind=r_tran)   :: answer, grad_above, grad_below
-    real(kind=r_tran)   :: recon, dep_pt
-
-    ! Set tolerance and set unit grid space
-    if ( r_tran == real64 ) then
-      tol = 1.0e-12_r_tran
-    else
-      tol = 1.0e-6_r_tran
-    end if
-    dz  = 1.0_r_tran
-
-    ! Test a linear function
-    rho        = 2.0_r_tran
-    grad_below = 1.0_r_tran
-    grad_above = 1.0_r_tran
-    dep_pt     = 0.5_r_tran
-
-    answer = 2.25_r_tran
-
-    call vertical_nirvana_recon(recon,      &
-                                dep_pt,     &
-                                rho,        &
-                                grad_below, &
-                                grad_above, &
-                                dz)
-
-    @assertEqual(answer, recon, tol)
-
-    ! Test a non-linear function
-    rho        = 4.0_r_tran
-    grad_below = 2.0_r_tran
-    grad_above = -1.0_r_tran
-    dep_pt     = 0.5_r_tran
-
-    answer = 4.125_r_tran
-
-
-    call vertical_nirvana_recon(recon,      &
-                                dep_pt,     &
-                                rho,        &
-                                grad_below, &
-                                grad_above, &
-                                dz)
-
-    @assertEqual(answer, recon, tol)
-
-  end subroutine vertical_nirvana_recon_test
-
-  !------------------------------------------------------------------
-
-  @test
-  subroutine vertical_nirvana_mono_strict_test()
-    use pFUnit_Mod
-    use, intrinsic :: iso_fortran_env,  only: real64
-    use subgrid_vertical_support_mod,   only: vertical_nirvana_recon, &
-                                              vertical_nirvana_mono_strict
-
-    implicit none
-
-    real(kind=r_tran)   :: rho(1:3), dz, tol
-    real(kind=r_tran)   :: answer, grad_above, grad_below
-    real(kind=r_tran)   :: recon, dep_pt
-
-    ! Set tolerance and set unit grid space
-    if ( r_tran == real64 ) then
-      tol = 1.0e-12_r_tran
-    else
-      tol = 1.0e-6_r_tran
-    end if
-    dz  = 1.0_r_tran
-
-    ! Test a non-linear function with strict monotonicity
-    rho(1)     = 0.0_r_tran
-    rho(2)     = 4.0_r_tran
-    rho(3)     = 3.0_r_tran
-    grad_below = 4.0_r_tran
-    grad_above = -1.0_r_tran
-    dep_pt     = 0.5_r_tran
-
-    ! Unlimited reconstruction is 4.125, limit should change this to 4
-    answer = 4.0_r_tran
-    call vertical_nirvana_recon(recon,      &
-                                dep_pt,     &
-                                rho(2),     &
-                                grad_below, &
-                                grad_above, &
-                                dz)
-
-    call vertical_nirvana_mono_strict(recon,      &
-                                      rho,        &
-                                      grad_below, &
-                                      grad_above, &
-                                      dz)
-
-    @assertEqual(answer, recon, tol)
-
-  end subroutine vertical_nirvana_mono_strict_test
-
-  !------------------------------------------------------------------
-
-  @test
-  subroutine vertical_nirvana_mono_relax_test()
-    use pFUnit_Mod
-    use, intrinsic :: iso_fortran_env,  only: real64
-    use subgrid_vertical_support_mod,   only: vertical_nirvana_recon, &
-                                              vertical_nirvana_mono_relax
-
-    implicit none
-
-    real(kind=r_tran)   :: rho(1:3), dz, tol
-    real(kind=r_tran)   :: answer, grad_above, grad_below
-    real(kind=r_tran)   :: recon, dep_pt
-
-    ! Set tolerance and set unit grid space
-    if ( r_tran == real64 ) then
-      tol = 1.0e-12_r_tran
-    else
-      tol = 1.0e-6_r_tran
-    end if
-    dz  = 1.0_r_tran
-
-    ! Test a non-linear function with relaxed monotonicity options
-    rho(1)     = 0.0_r_tran
-    rho(2)     = 4.0_r_tran
-    rho(3)     = 2.0_r_tran
-    grad_below = 2.0_r_tran
-    grad_above = -1.0_r_tran
-    dep_pt     = 0.5_r_tran
-
-    answer = 4.0_r_tran
-    call vertical_nirvana_recon(recon,      &
-                                dep_pt,     &
-                                rho(2),     &
-                                grad_below, &
-                                grad_above, &
-                                dz)
-
-    call vertical_nirvana_mono_relax(recon,      &
-                                     dep_pt,     &
-                                     rho,        &
-                                     grad_below, &
-                                     grad_above, &
-                                     dz)
-
-    @assertEqual(answer, recon, tol)
-
-  end subroutine vertical_nirvana_mono_relax_test
-
-  !------------------------------------------------------------------
-
-  @test
-  subroutine vertical_nirvana_positive_test()
-    use pFUnit_Mod
-    use, intrinsic :: iso_fortran_env,  only: real64
-    use subgrid_vertical_support_mod,   only: vertical_nirvana_recon, &
-                                              vertical_nirvana_positive
-
-    implicit none
-
-    real(kind=r_tran)   :: rho, dz, tol
-    real(kind=r_tran)   :: answer, grad_above, grad_below
-    real(kind=r_tran)   :: recon, dep_pt
-
-    ! Set tolerance and set unit grid space
-    if ( r_tran == real64 ) then
-      tol = 1.0e-12_r_tran
-    else
-      tol = 1.0e-6_r_tran
-    end if
-    dz  = 1.0_r_tran
-
-    ! Test a non-linear function with positivity
-    rho        = 0.1_r_tran
-    grad_below = -4.0_r_tran
-    grad_above = 0.0_r_tran
-    dep_pt     = 0.1_r_tran
-
-    ! Without positivity the recon=-0.56, with positivty the
-    ! recon should revert to the rho value of 0.1
-    answer = 0.1_r_tran
-    call vertical_nirvana_recon(recon,      &
-                                dep_pt,     &
-                                rho,        &
-                                grad_below, &
-                                grad_above, &
-                                dz)
-
-    call vertical_nirvana_positive(recon,      &
-                                   rho,        &
-                                   grad_below, &
-                                   grad_above, &
-                                   dz)
-
-    @assertEqual(answer, recon, tol)
-
-  end subroutine vertical_nirvana_positive_test
 
   !------------------------------------------------------------------
 
