@@ -1,0 +1,175 @@
+!-----------------------------------------------------------------------------
+! (c) Crown copyright 2025 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Module containing setup of transport_runtime objects for adjoint tests
+module setup_test_tl_transport_runtime_alg_mod
+
+  use constants_mod,                       only : r_def, i_def, l_def
+  use field_mod,                           only : field_type
+  use function_space_mod,                  only : function_space_type
+  use log_mod,                             only : log_event,         &
+                                                  LOG_LEVEL_ERROR
+  use mesh_mod,                            only : mesh_type
+  use mesh_collection_mod,                 only : mesh_collection
+  use model_clock_mod,                     only : model_clock_type
+  use finite_element_config_mod,           only : element_order_h, &
+                                                  element_order_v
+  use fs_continuity_mod,                   only : W2, W3, Wtheta
+  use function_space_collection_mod,       only : function_space_collection
+  use tl_transport_runtime_collection_mod, &
+                                           only : tl_transport_runtime
+  use tl_transport_control_alg_mod,        only : setup_transport_runtimes
+  use transport_config_mod,                only : cheap_update
+  use transport_runtime_alg_mod,           only : transport_runtime_type
+  use transport_runtime_collection_mod,    only : set_transport_runtime, &
+                                                  get_transport_runtime
+  use extrusion_mod,                       only : SHIFTED
+  use check_configuration_mod,             only : check_any_shifted
+  use operator_mod,                        only : operator_type
+  use setop_random_kernel_mod,             only : setop_random_kernel_type
+  use sci_fem_constants_mod,               only : get_inverse_mass_matrix,     &
+                                                  get_inverse_lumped_mass_matrix
+  use transport_enumerated_types_mod,      only : direction_3d
+
+  implicit none
+
+  private
+  public :: setup_test_tl_transport_runtime
+
+  contains
+
+  !=============================================================================
+  !> @brief Sets up the transport_runtime and tl_transport_runtime objects with randomised inputs
+  !> @param[in]  mesh         The model mesh
+  !> @param[in]  model_clock  The model clock
+  !> @param[in]  field_n_fs   (Optional) function space that field_n is initialised on
+  !>
+  subroutine setup_test_tl_transport_runtime( mesh, model_clock, field_n_fs )
+
+    implicit none
+
+    ! Arguments
+    type(mesh_type), pointer, intent(in)      :: mesh
+    type(model_clock_type),   intent(in)      :: model_clock
+    integer(kind=i_def), optional, intent(in) :: field_n_fs
+
+    ! Internal variables for setting up transport runtimes
+    type(function_space_type), pointer   :: vector_space_w2_ptr
+    type(function_space_type), pointer   :: vector_space_w3_ptr
+    type(field_type)                     :: wind_field
+    type(field_type)                     :: ls_wind_field
+    integer(kind=i_def)                  :: outer
+
+    ! Fields set or got during the adjoint that need initial values
+    type(field_type)                     :: field_n
+    type(field_type)                     :: ls_field_n
+    type(field_type)                     :: dry_flux
+    type(field_type)                     :: flux
+    type(field_type)                     :: rho_d
+    type(field_type)                     :: ls_rho_d
+    type(field_type)                     :: rho_d_n_rdef
+    type(field_type)                     :: ls_rho_d_n_rdef
+    integer(kind=i_def)                  :: step
+    integer(kind=i_def)                  :: num_steps
+
+    ! Some configs require field_n to be on a different function space to usual ahead of time
+    type(function_space_type), pointer :: vector_space_fnfs_ptr
+    integer(kind=i_def)                :: fnfs
+
+    type(operator_type),          pointer :: m3_inv
+    type(field_type),             pointer :: mt_lumped_inv
+    type(transport_runtime_type), pointer :: transport_runtime
+
+    ! Default field_n function space is W3, but for some configurations this can be e.g.: Wtheta
+    fnfs = W3
+    if ( present( field_n_fs ) ) then
+      fnfs = field_n_fs
+    end if
+
+    ! Initialising fields
+    vector_space_w2_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W2 )
+    vector_space_w3_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W3 )
+    vector_space_fnfs_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, fnfs )
+
+    call wind_field % initialise( vector_space = vector_space_w2_ptr )
+    call ls_wind_field % initialise( vector_space = vector_space_w2_ptr )
+    call field_n % initialise( vector_space = vector_space_fnfs_ptr )
+    call ls_field_n % initialise( vector_space = vector_space_fnfs_ptr )
+    call dry_flux % initialise( vector_space = vector_space_w2_ptr )
+    call flux % initialise( vector_space = vector_space_w2_ptr )
+    call rho_d % initialise( vector_space = vector_space_w3_ptr )
+    call ls_rho_d % initialise( vector_space = vector_space_w3_ptr )
+    call rho_d_n_rdef % initialise( vector_space = vector_space_w3_ptr )
+    call ls_rho_d_n_rdef % initialise( vector_space = vector_space_w3_ptr )
+
+    transport_runtime => get_transport_runtime( field_n%get_mesh() )
+
+    ! Mass matrix values are low and cause false positives,
+    ! so we inflate it here.
+    m3_inv => get_inverse_mass_matrix( W3, mesh%get_id() )
+    mt_lumped_inv => get_inverse_lumped_mass_matrix( Wtheta, mesh%get_id() )
+
+    ! Initialise values
+    ! for time being leave m3_inv and mt_lumped_inv unchanged
+    call invoke( setval_random( wind_field ),        &
+                 setval_random( ls_wind_field ),     &
+                 setval_random( field_n ),           &
+                 setval_random( ls_field_n ),        &
+                 setval_random( rho_d_n_rdef ),      &
+                 setval_random( ls_rho_d_n_rdef ) )
+
+    ! Create transport_runtime object
+    outer = 1_i_def
+    call setup_transport_runtimes( wind_field, wind_field,        &
+                                   ls_wind_field, ls_wind_field,  &
+                                   rho_d_n_rdef, ls_rho_d_n_rdef, &
+                                   model_clock, outer )
+
+    ! Store nth level field
+    transport_runtime => get_transport_runtime( field_n%get_mesh() )
+    call tl_transport_runtime%set_field_n( field_n )
+    call transport_runtime%set_field_n( ls_field_n )
+
+    ! Setting field values for timestep field arrays
+    num_steps = tl_transport_runtime%get_num_dry_steps()
+
+    do step = 1, num_steps + 1
+      if ( step < num_steps ) then
+
+        call invoke( setval_random( dry_flux ), &
+                     setval_random( flux ),     &
+                     setval_random( rho_d ),    &
+                     setval_random( ls_rho_d ) )
+        call tl_transport_runtime % set_dry_flux( dry_flux, step )
+        call tl_transport_runtime % set_flux( flux, step )
+        call transport_runtime % set_rho_d( rho_d, step )
+        call tl_transport_runtime % set_rho_d( ls_rho_d, step )
+
+      else if ( step == num_steps ) then
+
+        call invoke( setval_random( dry_flux ), &
+                     setval_random( rho_d ),    &
+                     setval_random( ls_rho_d ) )
+        call tl_transport_runtime % set_dry_flux( dry_flux, step )
+        call transport_runtime % set_rho_d( rho_d, step )
+        call tl_transport_runtime % set_rho_d( ls_rho_d, step )
+
+      else
+
+        call invoke( setval_random( rho_d ),    &
+                     setval_random( ls_rho_d ) )
+        call transport_runtime % set_rho_d( rho_d, step )
+        call tl_transport_runtime % set_rho_d( ls_rho_d, step )
+
+      end if
+    end do
+
+    ! Reset the counter for tracer transport steps
+    call transport_runtime%reset_tracer_step_ctr()
+    call tl_transport_runtime%reset_tracer_step_ctr()
+
+  end subroutine setup_test_tl_transport_runtime
+
+end module setup_test_tl_transport_runtime_alg_mod

@@ -1,0 +1,170 @@
+!-----------------------------------------------------------------------------
+! (c) Crown copyright 2025 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Module containing adjoint test for adj_end_transport_step_alg_mod functions
+
+module adjt_end_transport_step_alg_mod
+
+  use r_tran_field_mod,                    only : r_tran_field_type
+  use function_space_mod,                  only : function_space_type
+  use constants_mod,                       only : r_def, i_def, &
+                                                  l_def, r_tran
+  use log_mod,                             only : log_event,         &
+                                                  log_scratch_space, &
+                                                  LOG_LEVEL_INFO,    &
+                                                  LOG_LEVEL_DEBUG,   &
+                                                  LOG_LEVEL_ERROR
+  use mesh_mod,                            only : mesh_type
+  use finite_element_config_mod,           only : element_order_h, &
+                                                  element_order_v
+  use fs_continuity_mod,                   only : W2
+  use function_space_collection_mod,       only : function_space_collection
+  use tl_transport_runtime_collection_mod, &
+                                           only : tl_transport_runtime
+  use inner_from_runtime_rtran_alg_mod,    only : flux_prod_rtran, &
+                                                  flux_inp_prod_rtran
+  use transport_metadata_collection_mod,   only : transport_metadata_collection
+  use transport_metadata_mod,              only : transport_metadata_type
+
+  implicit none
+
+  private
+  public :: adjt_build_up_flux_alg
+
+  contains
+
+  !=============================================================================
+  !> @brief   Adjoint test for adj_build_up_flux.
+  !> @details Passes if adjoint is transpose of tangent linear.
+  !>          Determined by testing the equality of inner products <Mx, Mx> and <AMx, x>,
+  !>          where M is the tangent linear and A is the adjoint.
+  !> @param[in]  mesh         The model mesh
+  subroutine adjt_build_up_flux_alg( mesh )
+
+    use end_of_transport_step_alg_mod,       only : build_up_flux
+    use adj_end_transport_step_alg_mod,      only : adj_build_up_flux
+
+    implicit none
+
+    ! Arguments
+    type(mesh_type), pointer, intent(in) :: mesh
+
+    ! Arguments for tl and adj calls
+    type(r_tran_field_type)                :: sum_flux
+    type(r_tran_field_type)                :: flux_last_step
+    type(transport_metadata_type), pointer :: transport_metadata
+
+    ! Copies of input fields used in inner products
+    type(r_tran_field_type)                            :: sum_flux_input
+    type(r_tran_field_type)                            :: flux_last_step_input
+    type(r_tran_field_type), dimension(:), allocatable :: tr_flux_inp
+
+    ! Variables used to handle calculations for fields stored in tl_transport_runtime
+    type(r_tran_field_type), pointer :: temp_flux_ptr
+    integer(kind=i_def)              :: step
+    integer(kind=i_def)              :: num_steps
+    integer(kind=i_def)              :: mesh_id
+
+    ! Variables for initialising fields
+    type(function_space_type), pointer :: vector_space_w2_ptr
+
+    ! Inner products
+    real(kind=r_tran) :: inner1
+    real(kind=r_def) :: sum_flux_inner_prod
+    real(kind=r_def) :: flux_last_step_inner_prod
+    real(kind=r_tran) :: inner2
+    real(kind=r_def) :: sum_flux_sum_flux_input_inner_prod
+    real(kind=r_def) :: flux_last_flux_last_inp_inner_prod
+
+    ! Test parameters and variables
+    real(kind=r_tran), parameter :: overall_tolerance = 1500.0_r_tran
+    real(kind=r_tran) :: machine_tol
+    real(kind=r_tran) :: relative_diff
+
+    mesh_id = mesh % get_id()
+    transport_metadata => transport_metadata_collection % get_transport_metadata('density')
+
+    ! Initialising fields
+    vector_space_w2_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W2 )
+
+    call sum_flux % initialise( vector_space = vector_space_w2_ptr )
+    call flux_last_step % initialise( vector_space = vector_space_w2_ptr )
+
+    call sum_flux_input % initialise( vector_space = vector_space_w2_ptr )
+    call flux_last_step_input % initialise( vector_space = vector_space_w2_ptr )
+
+    sum_flux_inner_prod = 0.0_r_def
+    flux_last_step_inner_prod = 0.0_r_def
+
+    ! Initialise values and call the tangent-linear alg.
+    call invoke( name = "init",                                   &
+                 setval_random( sum_flux ),                       &
+                 setval_x( sum_flux_input, sum_flux ),            &
+                 setval_random( flux_last_step ),                 &
+                 setval_x( flux_last_step_input, flux_last_step ) )
+
+    ! Setting up flux input for tl_transport_runtime, saving flux input values
+    ! in scoped array. Last step is used as its own field, so num_steps is
+    ! num_dry_steps - 1.
+    num_steps = tl_transport_runtime%get_num_dry_steps() - 1
+    allocate( tr_flux_inp( num_steps ) )
+    do step = 1, num_steps
+      call tr_flux_inp(step) % initialise( vector_space = vector_space_w2_ptr )
+      temp_flux_ptr => tl_transport_runtime % get_flux( mesh_id, step )
+      call invoke( setval_x( tr_flux_inp(step), temp_flux_ptr ) )
+    end do
+
+    ! Tangent linear
+    call build_up_flux( sum_flux, flux_last_step, tl_transport_runtime, transport_metadata )
+
+    ! < Mx, Mx >
+    call invoke( x_innerproduct_x( sum_flux_inner_prod, sum_flux ),             &
+                 x_innerproduct_x( flux_last_step_inner_prod, flux_last_step ) )
+
+    inner1 = 0.0_r_tran
+    inner1 = inner1 + real( sum_flux_inner_prod, r_tran )
+    inner1 = inner1 + real( flux_last_step_inner_prod, r_tran )
+    write(log_scratch_space, *) "adjt_build_up_flux inner products:"
+    call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    write(log_scratch_space, *) "sum_flux inner product = ", real( sum_flux_inner_prod, r_tran )
+    call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    write(log_scratch_space, *) "flux_last_step inner product = ", real( flux_last_step_inner_prod, r_tran )
+    call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    call flux_prod_rtran( inner1, mesh_id )
+
+    ! Adjoint alg call and inner products
+    sum_flux_sum_flux_input_inner_prod = 0.0_r_def
+    flux_last_flux_last_inp_inner_prod = 0.0_r_def
+
+    ! Adjoint
+    call adj_build_up_flux( sum_flux, flux_last_step, tl_transport_runtime, transport_metadata )
+
+    ! < AMx, x >
+    call invoke( x_innerproduct_y( sum_flux_sum_flux_input_inner_prod,  &
+                                   sum_flux,                            &
+                                   sum_flux_input ),                    &
+                 x_innerproduct_y( flux_last_flux_last_inp_inner_prod,  &
+                                   flux_last_step,                      &
+                                   flux_last_step_input ) )
+
+    inner2 = 0.0_r_tran
+    inner2 = inner2 + real( sum_flux_sum_flux_input_inner_prod, r_tran )
+    inner2 = inner2 + real( flux_last_flux_last_inp_inner_prod, r_tran )
+    call flux_inp_prod_rtran( inner2, mesh_id, tr_flux_inp )
+
+    ! Test the inner-product values for equality, allowing for the precision of the active variables
+    machine_tol = spacing( max( abs( inner1 ), abs( inner2 ) ) )
+    relative_diff = abs( inner1 - inner2 ) / machine_tol
+    if ( relative_diff < overall_tolerance ) then
+      write( log_scratch_space, * ) "PASSED build_up_flux:", inner1, inner2, relative_diff
+      call log_event( log_scratch_space, LOG_LEVEL_INFO )
+    else
+      write( log_scratch_space, * ) "FAILED build_up_flux:", inner1, inner2, relative_diff
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end if
+
+  end subroutine adjt_build_up_flux_alg
+
+end module adjt_end_transport_step_alg_mod

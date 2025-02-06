@@ -68,7 +68,7 @@ program adjoint_tests
   ! Single step call since adjoint tests only require one step
   write( log_scratch_space,'("Running ", A, " ...")' ) application_name
   call log_event( log_scratch_space, log_level_trace )
-  call run()
+  call run( modeldb%clock )
 
   call log_event( 'Finalising '//application_name//' ...', log_level_trace )
   call finalise( application_name, modeldb )

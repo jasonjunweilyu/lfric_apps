@@ -1,0 +1,365 @@
+!-----------------------------------------------------------------------------
+! (c) Crown copyright 2025 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+
+!> @brief Module to get inner product of fields from transport runtime at r_def precision
+
+module inner_from_runtime_rdef_alg_mod
+
+  use constants_mod,                       only : r_def, i_def
+  use tl_transport_runtime_collection_mod, &
+                                           only : tl_transport_runtime
+  use transport_runtime_alg_mod,           only : transport_runtime_type
+  use transport_runtime_collection_mod,    only : get_transport_runtime
+  use field_mod,                           only : field_type
+  use mesh_mod,                            only : mesh_type
+  use log_mod,                             only : log_event,       &
+                                                  LOG_LEVEL_DEBUG, &
+                                                  log_scratch_space
+
+  implicit none
+
+  private
+  public :: flux_prod_rdef
+  public :: flux_inp_prod_rdef
+  public :: dry_flux_prod_rdef
+  public :: dry_flux_inp_prod_rdef
+  public :: rho_d_prod_rdef
+  public :: rho_d_inp_prod_rdef
+  public :: field_n_prod_rdef
+  public :: field_n_inp_prod_rdef
+  public :: adv_wind_prod_rdef
+  public :: adv_wind_inp_prod_rdef
+
+  contains
+  !=============================================================================
+  !> @brief Increments the rdef inner product by flux.flux
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh_id       The mesh id
+  !> @param[in]      flux_sf       (Optional) scale factor for the increment
+  subroutine flux_prod_rdef( inner, mesh_id, flux_sf )
+
+    implicit none
+
+    real(kind=r_def),        intent(inout) :: inner
+    integer(kind=i_def),        intent(in) :: mesh_id
+    real(kind=r_def), intent(in), optional :: flux_sf
+
+    type(field_type), pointer        :: flux_ptr
+    integer(kind=i_def)              :: step
+    integer(kind=i_def)              :: num_steps
+    real(kind=r_def)                 :: flux_inner_prod
+
+    num_steps = tl_transport_runtime % get_num_dry_steps()
+    do step = 1, num_steps - 1
+      flux_inner_prod = 0.0_r_def
+      flux_ptr => tl_transport_runtime % get_flux( mesh_id, step )
+      call invoke( x_innerproduct_x( flux_inner_prod, flux_ptr ) )
+
+      if( present(flux_sf) ) then
+        inner = inner + flux_inner_prod*flux_sf
+        call invoke( inc_a_times_X(flux_sf, flux_ptr) )
+        write(log_scratch_space, *) "Transport runtime flux(step = ", step, ") inner prod = ", flux_inner_prod*flux_sf
+      else
+        inner = inner + flux_inner_prod
+        write(log_scratch_space, *) "Transport runtime flux(step = ", step, ") inner prod = ", flux_inner_prod
+      end if
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    end do
+
+  end subroutine flux_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by flux.flux_inp
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh_id       The mesh id
+  !> @param[in]      flux_input    Flux field at start of adjoint test
+  subroutine flux_inp_prod_rdef( inner, mesh_id, flux_input )
+
+    implicit none
+
+    real(kind=r_def), intent(inout)                   :: inner
+    integer(kind=i_def), intent(in)                   :: mesh_id
+    type(field_type), dimension(:), intent(in)        :: flux_input
+
+    type(field_type), pointer        :: flux_ptr
+    integer(kind=i_def)              :: step
+    integer(kind=i_def)              :: num_steps
+    real(kind=r_def)                 :: flux_inner_prod
+
+    num_steps = tl_transport_runtime % get_num_dry_steps()
+    do step = 1, num_steps - 1
+      flux_inner_prod = 0.0_r_def
+      flux_ptr => tl_transport_runtime % get_flux( mesh_id, step )
+      call invoke( x_innerproduct_y( flux_inner_prod,      &
+                                     flux_ptr,             &
+                                     flux_input(step) ) )
+      inner = inner + flux_inner_prod
+    end do
+
+  end subroutine flux_inp_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by dry_flux.dry_flux
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh_id       The mesh id
+  !> @param[in]      dry_flux_sf   (Optional) scale factor for the increment
+  subroutine dry_flux_prod_rdef( inner, mesh_id, dry_flux_sf )
+
+    implicit none
+
+    real(kind=r_def),        intent(inout) :: inner
+    integer(kind=i_def),        intent(in) :: mesh_id
+    real(kind=r_def), intent(in), optional :: dry_flux_sf
+
+    type(field_type), pointer        :: dry_flux_ptr
+    integer(kind=i_def)              :: step
+    integer(kind=i_def)              :: num_steps
+    real(kind=r_def)                 :: dry_flux_inner_prod
+
+    num_steps = tl_transport_runtime % get_num_dry_steps()
+    do step = 1, num_steps
+      dry_flux_inner_prod = 0.0_r_def
+      dry_flux_ptr => tl_transport_runtime % get_dry_flux( mesh_id, step )
+      call invoke( x_innerproduct_x( dry_flux_inner_prod, dry_flux_ptr ) )
+
+      if( present(dry_flux_sf) ) then
+        inner = inner + dry_flux_inner_prod*dry_flux_sf
+        call invoke( inc_a_times_X(dry_flux_sf, dry_flux_ptr) )
+        write(log_scratch_space, *) "Transport runtime dry_flux(step = ", step, ") inner prod = ", &
+                                    dry_flux_inner_prod*dry_flux_sf
+      else
+        inner = inner + dry_flux_inner_prod
+        write(log_scratch_space, *) "Transport runtime dry_flux(step = ", step, ") inner prod = ", &
+                                    dry_flux_inner_prod
+      end if
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    end do
+
+  end subroutine dry_flux_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by dry_flux.dry_flux_inp
+  !> @param[in,out]  inner           Inner product (rdef) to increment
+  !> @param[in]      mesh_id         The mesh id
+  !> @param[in]      dry_flux_input  Dry flux field at start of adjoint test
+  subroutine dry_flux_inp_prod_rdef( inner, mesh_id, dry_flux_input )
+
+    implicit none
+
+    real(kind=r_def), intent(inout)                   :: inner
+    integer(kind=i_def), intent(in)                   :: mesh_id
+    type(field_type), dimension(:), intent(in)        :: dry_flux_input
+
+    type(field_type), pointer        :: dry_flux_ptr
+    integer(kind=i_def)              :: step
+    integer(kind=i_def)              :: num_steps
+    real(kind=r_def)                 :: dry_flux_inner_prod
+
+    num_steps = tl_transport_runtime % get_num_dry_steps()
+    do step = 1, num_steps
+      dry_flux_inner_prod = 0.0_r_def
+      dry_flux_ptr => tl_transport_runtime % get_dry_flux( mesh_id, step )
+      call invoke( x_innerproduct_y( dry_flux_inner_prod,      &
+                                     dry_flux_ptr,             &
+                                     dry_flux_input(step) ) )
+      inner = inner + dry_flux_inner_prod
+    end do
+
+  end subroutine dry_flux_inp_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by rho_d.rho_d
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh          The mesh
+  !> @param[in]      rho_d_sf      (Optional) scale factor for the increment
+  subroutine rho_d_prod_rdef( inner, mesh, rho_d_sf )
+
+    implicit none
+
+    real(kind=r_def),        intent(inout) :: inner
+    type(mesh_type),   pointer, intent(in) :: mesh
+    real(kind=r_def), intent(in), optional :: rho_d_sf
+
+    type(field_type),             pointer :: rho_d_ptr
+    integer(kind=i_def)                   :: step
+    integer(kind=i_def)                   :: num_steps
+    real(kind=r_def)                      :: rho_d_inner_prod
+    type(transport_runtime_type), pointer :: transport_runtime
+    integer(kind=i_def)                   :: mesh_id
+
+    mesh_id = mesh % get_id()
+    transport_runtime => get_transport_runtime( mesh )
+    num_steps = transport_runtime % get_num_dry_steps()
+    do step = 1, num_steps + 1
+      rho_d_inner_prod = 0.0_r_def
+      rho_d_ptr => transport_runtime % get_rho_d( mesh_id, step )
+      call invoke( x_innerproduct_x( rho_d_inner_prod, rho_d_ptr ) )
+
+      if( present(rho_d_sf) ) then
+        inner = inner + rho_d_inner_prod*rho_d_sf
+        call invoke( inc_a_times_X(rho_d_sf, rho_d_ptr) )
+        write(log_scratch_space, *) "Transport runtime rho_d(step = ", step, ") inner prod = ", &
+                                    rho_d_inner_prod*rho_d_sf
+      else
+        inner = inner + rho_d_inner_prod
+        write(log_scratch_space, *) "Transport runtime rho_d(step = ", step, ") inner prod = ", &
+                                    rho_d_inner_prod
+      end if
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    end do
+
+  end subroutine rho_d_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by rho_d.rho_d_inp
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh          The mesh
+  !> @param[in]      rho_d_input   Density field at start of adjoint test
+  subroutine rho_d_inp_prod_rdef( inner, mesh, rho_d_input )
+
+    implicit none
+
+    real(kind=r_def),            intent(inout) :: inner
+    type(mesh_type),       pointer, intent(in) :: mesh
+    type(field_type), dimension(:), intent(in) :: rho_d_input
+
+    type(field_type),             pointer :: rho_d_ptr
+    integer(kind=i_def)                   :: step
+    integer(kind=i_def)                   :: num_steps
+    real(kind=r_def)                      :: rho_d_inner_prod
+    type(transport_runtime_type), pointer :: transport_runtime
+    integer(kind=i_def)                   :: mesh_id
+
+    mesh_id = mesh % get_id()
+    transport_runtime => get_transport_runtime( mesh )
+    num_steps = transport_runtime % get_num_dry_steps()
+    do step = 1, num_steps + 1
+      rho_d_inner_prod = 0.0_r_def
+      rho_d_ptr => transport_runtime % get_rho_d( mesh_id, step )
+      call invoke( x_innerproduct_y( rho_d_inner_prod,      &
+                                     rho_d_ptr,             &
+                                     rho_d_input(step) ) )
+      inner = inner + rho_d_inner_prod
+    end do
+
+  end subroutine rho_d_inp_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by field_n.field_n
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      field_n_sf    (Optional) scale factor for the increment
+  subroutine field_n_prod_rdef( inner, field_n_sf )
+
+    implicit none
+
+    real(kind=r_def),        intent(inout) :: inner
+    real(kind=r_def), intent(in), optional :: field_n_sf
+
+    type(field_type), pointer              :: field_n_ptr
+    real(kind=r_def)                       :: field_n_inner_prod
+
+
+    field_n_inner_prod = 0.0_r_def
+    field_n_ptr => tl_transport_runtime % get_field_n()
+    call invoke( x_innerproduct_x( field_n_inner_prod, field_n_ptr ) )
+
+    if( present(field_n_sf) ) then
+      inner = inner + field_n_inner_prod*field_n_sf
+      call invoke( inc_a_times_X(field_n_sf, field_n_ptr) )
+      write(log_scratch_space, *) "Transport runtime field_n inner prod = ", &
+                                  field_n_inner_prod*field_n_sf
+    else
+      inner = inner + field_n_inner_prod
+      write(log_scratch_space, *) "Transport runtime field_n inner prod = ", &
+                                  field_n_inner_prod
+    end if
+    call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+
+  end subroutine field_n_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by field_n.field_n_inp
+  !> @param[in,out]  inner          Inner product (rdef) to increment
+  !> @param[in]      field_n_input  Field at timestep n at start of adjoint test
+  subroutine field_n_inp_prod_rdef( inner, field_n_input )
+
+    real(kind=r_def), intent(inout)     :: inner
+    type(field_type), intent(in)        :: field_n_input
+
+    type(field_type), pointer        :: field_n_ptr
+    real(kind=r_def)                 :: field_n_inner_prod
+
+    field_n_inner_prod = 0.0_r_def
+    field_n_ptr => tl_transport_runtime % get_field_n()
+    call invoke( x_innerproduct_y( field_n_inner_prod,      &
+                                   field_n_ptr,             &
+                                   field_n_input ) )
+    inner = inner + field_n_inner_prod
+
+  end subroutine field_n_inp_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by adv_wind.adv_wind
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh_id       The mesh id
+  !> @param[in]      direction     Direction of advective wind field
+  !> @param[in]      adv_wind_sf   (Optional) scale factor for the increment
+  subroutine adv_wind_prod_rdef( inner, mesh_id, direction, adv_wind_sf )
+
+    implicit none
+
+    real(kind=r_def),        intent(inout) :: inner
+    integer(kind=i_def),        intent(in) :: mesh_id
+    integer(kind=i_def),        intent(in) :: direction
+    real(kind=r_def), intent(in), optional :: adv_wind_sf
+
+    type(field_type), pointer        :: wind_ptr
+    real(kind=r_def)                 :: advw_inner_prod
+
+    advw_inner_prod = 0.0_r_def
+    wind_ptr => tl_transport_runtime % get_directional_advecting_wind( mesh_id, direction )
+    call invoke( x_innerproduct_x( advw_inner_prod, wind_ptr ) )
+
+    if( present(adv_wind_sf) ) then
+      inner = inner + advw_inner_prod*adv_wind_sf
+      call invoke( inc_a_times_X(adv_wind_sf, wind_ptr) )
+      write(log_scratch_space, *) "Transport runtime advective_wind(direction = ", direction, ", mesh_id = ", mesh_id, &
+                                  ") inner prod = ", advw_inner_prod*adv_wind_sf
+    else
+      inner = inner + advw_inner_prod
+      write(log_scratch_space, *) "Transport runtime advective_wind(direction = ", direction, ", mesh_id = ", mesh_id, &
+                                  ") inner prod = ", advw_inner_prod
+    end if
+    call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+
+  end subroutine adv_wind_prod_rdef
+
+  !=============================================================================
+  !> @brief Increments the rdef inner product by flux.flux_inp
+  !> @param[in,out]  inner         Inner product (rdef) to increment
+  !> @param[in]      mesh_id       The mesh id
+  !> @param[in]      wind_input    Wind field at start of adjoint test
+  !> @param[in]      direction     Direction of advective wind field
+  subroutine adv_wind_inp_prod_rdef( inner, mesh_id, wind_input, direction )
+
+    real(kind=r_def),    intent(inout)  :: inner
+    integer(kind=i_def), intent(in)     :: mesh_id
+    type(field_type),    intent(in)     :: wind_input
+    integer(kind=i_def), intent(in)     :: direction
+
+    type(field_type), pointer        :: wind_ptr
+    real(kind=r_def)                 :: advw_inner_prod
+
+    advw_inner_prod = 0.0_r_def
+    wind_ptr => tl_transport_runtime % get_directional_advecting_wind( mesh_id, direction )
+    call invoke( x_innerproduct_y( advw_inner_prod, &
+                                   wind_ptr,        &
+                                   wind_input ) )
+    inner = inner + advw_inner_prod
+
+  end subroutine adv_wind_inp_prod_rdef
+
+end module inner_from_runtime_rdef_alg_mod

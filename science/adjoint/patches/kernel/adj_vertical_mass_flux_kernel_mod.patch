@@ -1,0 +1,23 @@
+@@ -44,17 +44,17 @@
+       df = 5
+       offset = 4 * nlayers
+     end if
+-    mass_flux(map_w2(df) + nlayers) = 0.0
++    mass_flux(map_w2(df) + nlayers) = 0.0_r_tran
+     do k = nlayers - 1, 1, -1
+       ijp2 = k + nlayers + offset + map_md(1) - 1
+       ijp1 = k + offset + map_md(1)
+-      wgt = 0.5 - SIGN(0.5, wind(k + map_w2(df)))
++      wgt = 0.5_r_tran - SIGN(0.5_r_tran, wind(k + map_w2(df)))
+       reconstruction(ijp1) = reconstruction(ijp1) + wgt * mass_flux(map_w2(df) + k) * wind(k + map_w2(df))
+       reconstruction(ijp2) = reconstruction(ijp2) - wgt * mass_flux(map_w2(df) + k) * wind(k + map_w2(df))
+-      reconstruction(ijp2) = reconstruction(ijp2) + 1.0 * mass_flux(map_w2(df) + k) * wind(k + map_w2(df))
+-      mass_flux(map_w2(df) + k) = 0.0
++      reconstruction(ijp2) = reconstruction(ijp2) + mass_flux(map_w2(df) + k) * wind(k + map_w2(df))
++      mass_flux(map_w2(df) + k) = 0.0_r_tran
+     enddo
+-    mass_flux(map_w2(df)) = 0.0
++    mass_flux(map_w2(df)) = 0.0_r_tran
+ 
+   end subroutine adj_vertical_mass_flux_code
+ 

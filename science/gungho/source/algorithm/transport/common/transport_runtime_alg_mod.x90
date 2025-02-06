@@ -258,6 +258,7 @@ module transport_runtime_alg_mod
     procedure, public  :: get_num_dry_steps
     procedure, public  :: get_tracer_step_ctr
     procedure, public  :: inc_tracer_step_ctr
+    procedure, public  :: dec_tracer_step_ctr
     procedure, public  :: reset_tracer_step_ctr
     procedure, public  :: get_substep_total_ctr
     procedure, public  :: set_substep_total_ctr
@@ -1745,18 +1746,27 @@ contains
   !> @brief Sets fluxes for use in conservative transport
   !> @param[in,out] self      The transport_runtime object
   !> @param[in]     flux      Mass flux for a particular split step
-  subroutine set_flux(self, flux)
+  !> @param[in]     step      (Optional) step to set data to
+  subroutine set_flux(self, flux, step)
 
     implicit none
 
     class(transport_runtime_type), target, intent(inout) :: self
     type(r_tran_field_type),               intent(in)    :: flux
+    integer(kind=i_def),         optional, intent(in)    :: step
 
     integer(kind=i_def) :: idx
+    integer(kind=i_def) :: tstep
+
+    if( present(step) ) then
+      tstep = step
+    else
+      tstep = self%tracer_step_ctr
+    end if
 
     idx = self%idx_from_mesh_id(flux%get_mesh_id())
-    call flux%copy_field_properties(self%flux(idx,self%tracer_step_ctr))
-    call invoke( setval_X(self%flux(idx,self%tracer_step_ctr), flux) )
+    call flux%copy_field_properties(self%flux(idx,tstep))
+    call invoke( setval_X(self%flux(idx,tstep), flux) )
 
   end subroutine set_flux
 
@@ -3843,6 +3853,24 @@ contains
     self%tracer_step_ctr = self%tracer_step_ctr + 1
 
   end subroutine inc_tracer_step_ctr
+
+  !> @brief Decrements the counter of tracer transport steps
+  !> @details Used in the adjoint testing and the adjoint model.
+  subroutine dec_tracer_step_ctr(self)
+
+    implicit none
+
+    class(transport_runtime_type), target, intent(inout) :: self
+    integer(kind=i_def) temp_step
+
+    temp_step = self%tracer_step_ctr - 1
+    if (temp_step < 1) then
+      self%tracer_step_ctr = 1
+    else
+      self%tracer_step_ctr = temp_step
+    end if
+
+  end subroutine dec_tracer_step_ctr
 
   !> @brief Resets the counter of tracer transport steps
   subroutine reset_tracer_step_ctr(self)

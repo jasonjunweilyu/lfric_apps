@@ -1,0 +1,173 @@
+!-----------------------------------------------------------------------------
+! (c) Crown copyright 2025 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Some tl_transport_runtime fields are modified by adjoint.
+!!        This module initialises (both fs and values of) external fields
+!!        in the adjoint tests to these runtime fields.
+module init_from_runtime_alg_mod
+
+  use mesh_mod,                            only : mesh_type
+  use constants_mod,                       only : i_def
+  use r_tran_field_mod,                    only : r_tran_field_type
+  use tl_transport_runtime_collection_mod, &
+                                           only : tl_transport_runtime
+  use transport_runtime_alg_mod,           only : transport_runtime_type
+  use transport_runtime_collection_mod,    only : get_transport_runtime
+  use finite_element_config_mod,           only : element_order_h, &
+                                                  element_order_v
+  use fs_continuity_mod,                   only : W2, W3, W2H, W2V
+  use transport_enumerated_types_mod,      only : direction_3d, &
+                                                  direction_h,  &
+                                                  direction_v
+  use function_space_collection_mod,       only : function_space_collection
+  use function_space_mod,                  only : function_space_type
+  use log_mod,                             only : log_event, LOG_LEVEL_ERROR
+
+  implicit none
+
+  private
+
+  public :: init_atl_end_con_step_fields
+  public :: init_adv_wind_field
+
+  contains
+  !=============================================================================
+  !> @brief Initialises fs and values of fields used in adjoint tests involving atl_end_con_step
+  !> @param[in]      mesh                The model mesh
+  !> @param[in]      num_steps           The number of steps in tangent linear transport runtime
+  !> @param[in,out]  tr_field_n_inp      The field_n field to be initialised and set from the transport runtime
+  !> @param[in,out]  tr_dry_flux_inp     The dry flux field to be initialised and set from the transport runtime
+  !> @param[in,out]  tr_flux_inp         The flux field to be initialised and set from the transport runtime
+  !> @param[in,out]  tr_rho_d_inp        The density field to be initialised and set from the transport runtime
+  !> @param[in]      field_n_fs          (Optional) function space for field_n
+  subroutine init_atl_end_con_step_fields( mesh, num_steps, tr_field_n_inp, &
+                                           tr_dry_flux_inp, tr_flux_inp, tr_rho_d_inp, field_n_fs )
+
+    implicit none
+
+    ! Arguments
+    type(mesh_type),                          pointer, intent(in)    :: mesh
+    integer(kind=i_def),                               intent(in)    :: num_steps
+    type(r_tran_field_type),                           intent(inout) :: tr_field_n_inp
+    type(r_tran_field_type), dimension(1:num_steps),   intent(inout) :: tr_dry_flux_inp
+    type(r_tran_field_type), dimension(1:num_steps-1), intent(inout) :: tr_flux_inp
+    type(r_tran_field_type), dimension(1:num_steps+1), intent(inout) :: tr_rho_d_inp
+    integer(kind=i_def),                     optional, intent(in)    :: field_n_fs
+
+    ! Internal variables
+    type(transport_runtime_type), pointer :: transport_runtime
+    type(r_tran_field_type),      pointer :: tr_field_n_ptr
+    type(r_tran_field_type),      pointer :: tr_dry_flux_ptr
+    type(r_tran_field_type),      pointer :: tr_flux_ptr
+    type(r_tran_field_type),      pointer :: tr_rho_d_ptr
+    type(function_space_type),    pointer :: vector_space_w2_ptr
+    type(function_space_type),    pointer :: vector_space_w3_ptr
+    integer(kind=i_def)                   :: step
+    integer(kind=i_def)                   :: mesh_id
+
+    ! Some configs require field_n to be on a different function space to usual ahead of time
+    type(function_space_type), pointer :: vector_space_fnfs_ptr
+    integer(kind=i_def)                :: fnfs
+
+    mesh_id = mesh % get_id()
+    transport_runtime => get_transport_runtime( mesh )
+
+    ! Default field_n function space is W3, but for some configurations this can be e.g.: Wtheta
+    fnfs = W3
+    if ( present( field_n_fs ) ) then
+      fnfs = field_n_fs
+    end if
+    vector_space_fnfs_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, fnfs )
+    vector_space_w3_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W3 )
+    vector_space_w2_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W2 )
+
+    ! Initialising field arrays
+    do step = 1, num_steps + 1
+      ! Init all field arrays
+      if ( step < num_steps ) then
+
+        call tr_dry_flux_inp(step) % initialise( vector_space = vector_space_w2_ptr )
+        call tr_flux_inp(step) % initialise( vector_space = vector_space_w2_ptr )
+        call tr_rho_d_inp(step) % initialise( vector_space = vector_space_w3_ptr )
+
+        tr_dry_flux_ptr => tl_transport_runtime % get_dry_flux( mesh_id, step )
+        tr_flux_ptr => tl_transport_runtime % get_flux( mesh_id, step )
+        tr_rho_d_ptr => transport_runtime % get_rho_d( mesh_id, step )
+
+        call invoke( setval_x( tr_dry_flux_inp(step), tr_dry_flux_ptr ), &
+                     setval_x( tr_flux_inp(step), tr_flux_ptr ),         &
+                     setval_x( tr_rho_d_inp(step), tr_rho_d_ptr ) )
+
+      ! Init all field arrays except tr_flux_inp
+      else if ( step == num_steps ) then
+
+        call tr_dry_flux_inp(step) % initialise( vector_space = vector_space_w2_ptr )
+        call tr_rho_d_inp(step) % initialise( vector_space = vector_space_w3_ptr )
+
+        tr_dry_flux_ptr => tl_transport_runtime % get_dry_flux( mesh_id, step )
+        tr_rho_d_ptr => transport_runtime % get_rho_d( mesh_id, step )
+
+        call invoke( setval_x( tr_dry_flux_inp(step), tr_dry_flux_ptr ), &
+                     setval_x( tr_rho_d_inp(step), tr_rho_d_ptr ) )
+
+      ! Only modify tr_rho_d_inp
+      else
+
+        call tr_rho_d_inp(step) % initialise( vector_space = vector_space_w3_ptr )
+
+        tr_rho_d_ptr => transport_runtime % get_rho_d( mesh_id, step )
+
+        call invoke( setval_x( tr_rho_d_inp(step), tr_rho_d_ptr ) )
+
+      end if
+    end do
+
+    call tr_field_n_inp % initialise( vector_space = vector_space_fnfs_ptr )
+    tr_field_n_ptr => tl_transport_runtime % get_field_n()
+    call invoke( setval_x( tr_field_n_inp, tr_field_n_ptr ) )
+
+  end subroutine init_atl_end_con_step_fields
+
+  !=============================================================================
+  !> @brief Initialises fs and values of fields used in adjoint tests involving advecting winds from transport runtime
+  !> @param[in]      mesh                The model mesh
+  !> @param[in,out]  tr_wind_inp         The wind field to be initialised and set from the transport runtime
+  !> @param[in]      direction           The desired direction
+  subroutine init_adv_wind_field( mesh, tr_wind_inp, direction )
+
+    implicit none
+
+    ! Arguments
+    type(mesh_type), pointer, intent(in)    :: mesh
+    type(r_tran_field_type),  intent(inout) :: tr_wind_inp
+    integer(kind=i_def),      intent(in)    :: direction
+
+    ! Internal variables
+    type(function_space_type), pointer :: vector_space_ptr
+    type(r_tran_field_type),   pointer :: tr_wind_ptr
+    integer(kind=i_def)                :: mesh_id
+
+    mesh_id = mesh % get_id()
+
+    select case ( direction )
+    case ( direction_3d )
+      vector_space_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W2 )
+    case ( direction_h )
+      vector_space_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W2H )
+    case ( direction_v )
+      vector_space_ptr => function_space_collection % get_fs( mesh, element_order_h, element_order_v, W2V )
+    case default
+      call log_event('Direction not recognised', LOG_LEVEL_ERROR)
+    end select
+
+    call tr_wind_inp % initialise( vector_space = vector_space_ptr )
+
+    tr_wind_ptr => tl_transport_runtime % get_directional_advecting_wind( mesh_id, direction )
+
+    call invoke( setval_x( tr_wind_inp, tr_wind_ptr ) )
+
+  end subroutine init_adv_wind_field
+
+end module init_from_runtime_alg_mod
