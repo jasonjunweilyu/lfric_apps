@@ -15,7 +15,6 @@ module lfric2lfric_infrastructure_mod
   use add_mesh_map_mod,           only : assign_mesh_maps
   use constants_mod,              only : str_def, r_def, i_def, l_def
   use create_mesh_mod,            only : create_mesh
-  use driver_mesh_mod,            only : init_mesh
   use driver_modeldb_mod,         only : modeldb_type
   use driver_fem_mod,             only : init_fem
   use driver_io_mod,              only : init_io, &
@@ -40,6 +39,7 @@ module lfric2lfric_infrastructure_mod
   !------------------------------------
   ! lfric2lfric modules
   !------------------------------------
+  use lfric2lfric_init_mesh_mod,  only : init_mesh
   use lfric2lfric_check_conf_mod, only : lfric2lfric_check_configuration
   use lfric2lfric_file_init_mod,  only : init_lfric2lfric_dst_files, &
                                          init_lfric2lfric_src_files
@@ -50,6 +50,7 @@ module lfric2lfric_infrastructure_mod
   !------------------------------------
   use base_mesh_config_mod,       only : GEOMETRY_SPHERICAL, &
                                          GEOMETRY_PLANAR
+  use lfric2lfric_config_mod,     only : regrid_method_map
 
 
   implicit none
@@ -111,19 +112,21 @@ contains
     type(namelist_type), pointer :: files_nml
 
     ! Namelist parameters
-    character(len=str_def),    allocatable :: chain_mesh_tags(:)
+    character(len=str_def)                 :: source_mesh_name
+    character(len=str_def)                 :: destination_mesh_name
+    character(len=str_def)                 :: mesh_names(2)
     character(len=str_def),    allocatable :: twod_names(:)
     character(len=str_def)                 :: start_dump_filename
 
     ! lfric2lfric namelist parameters
-    integer(kind=i_def) :: origin_domain
-    integer(kind=i_def) :: target_domain
+    integer(kind=i_def)     :: origin_domain
+    integer(kind=i_def)     :: target_domain
 
-    integer(kind=i_def) :: stencil_depth
-    integer(kind=i_def) :: geometry
-    real(kind=r_def)    :: domain_bottom
-    real(kind=r_def)    :: scaled_radius
-    logical(kind=l_def) :: apply_partition_check
+    integer(kind=i_def)     :: stencil_depth
+    integer(kind=i_def)     :: geometry
+    integer(i_def)          :: regrid_method
+    real(kind=r_def)        :: domain_bottom
+    real(kind=r_def)        :: scaled_radius
 
     integer(kind=i_def)            :: i
     integer(kind=i_def), parameter :: one_layer = 1_i_def
@@ -156,8 +159,12 @@ contains
     call lfric2lfric_check_configuration( lfric2lfric_nml )
 
     call lfric2lfric_nml%get_value( 'origin_domain', origin_domain )
+    call lfric2lfric_nml%get_value( 'regrid_method', regrid_method )
+    call lfric2lfric_nml%get_value( 'destination_mesh_name', &
+                                             destination_mesh_name )
+    call lfric2lfric_nml%get_value( 'source_mesh_name', &
+                                             source_mesh_name )
     call lfric2lfric_nml%get_value( 'target_domain', target_domain )
-    call lfric2lfric_nml%get_value( 'chain_mesh_tags', chain_mesh_tags )
     call files_nml%get_value( 'start_dump_filename', start_dump_filename )
 
     !=======================================================================
@@ -186,20 +193,25 @@ contains
     ! 1.2 Create the required meshes
     !-----------------------------------------------------------------------
     stencil_depth = 1_i_def
-    apply_partition_check = .true.
     call init_mesh( modeldb%configuration,       &
                     modeldb%mpi%get_comm_rank(), &
                     modeldb%mpi%get_comm_size(), &
-                    chain_mesh_tags, extrusion,  &
-                    stencil_depth, apply_partition_check )
+                    destination_mesh_name,       &
+                    source_mesh_name, extrusion, &
+                    stencil_depth, regrid_method )
 
-    allocate( twod_names, source=chain_mesh_tags )
+    mesh_names(1) = destination_mesh_name
+    mesh_names(2) = source_mesh_name
+
+    allocate( twod_names, source=mesh_names )
     do i=1, size(twod_names)
       twod_names(i) = trim(twod_names(i))//'_2d'
     end do
-    call create_mesh( chain_mesh_tags, extrusion_2d, &
+    call create_mesh( mesh_names, extrusion_2d, &
                       alt_name=twod_names )
-    call assign_mesh_maps( twod_names )
+    if (regrid_method == regrid_method_map) then
+      call assign_mesh_maps(twod_names)
+    end if
 
     !=======================================================================
     ! 2.0 Build the FEM function spaces and coordinate fields
@@ -213,35 +225,13 @@ contains
     !-----------------------------------------------------------------------
     ! 2.2 Create the coordinates fields
     !-----------------------------------------------------------------------
-    ! TODO: Implement reading meshes from individual files to avoid below issue
-    ! Point to source mesh object and set mesh IDs.
-    ! The source mesh will be by default the second mesh in the multigrid file,
-    ! the destination mesh the first.
-    ! As the prime mesh is set with the namelist parameter prime_mesh_name,
-    ! we need to change the mesh order to make sense.
-
     ! Assign pointers to the correct meshes
-    mesh          => mesh_collection%get_mesh(trim(chain_mesh_tags(2)))
-    twod_mesh     => mesh_collection%get_mesh(trim(chain_mesh_tags(2))//'_2d')
-    mesh_dst      => mesh_collection%get_mesh(trim(chain_mesh_tags(1)))
-    twod_mesh_dst => mesh_collection%get_mesh(trim(chain_mesh_tags(1))//'_2d')
+    mesh          => mesh_collection%get_mesh(trim(source_mesh_name))
+    twod_mesh     => mesh_collection%get_mesh(trim(twod_names(2)))
+    mesh_dst      => mesh_collection%get_mesh(trim(destination_mesh_name))
+    twod_mesh_dst => mesh_collection%get_mesh(trim(twod_names(1)))
 
-    ! Assign mesh IDs to our newly ordered meshes:
-    ! a) Source meshes
-    call mesh%set_id(mesh_collection%get_mesh_id(                          &
-                                          trim(chain_mesh_tags(2)))        &
-                                          )
-    call twod_mesh%set_id(mesh_collection%get_mesh_id(                     &
-                                          trim(chain_mesh_tags(2))//'_2d') &
-                                          )
-
-    ! b) Destination meshes
-    call mesh_dst%set_id(mesh_collection%get_mesh_id(                      &
-                                          trim(chain_mesh_tags(1)))        &
-                                          )
-    call twod_mesh_dst%set_id(mesh_collection%get_mesh_id(                 &
-                                          trim(chain_mesh_tags(1))//'_2d') &
-                                          )
+    deallocate(twod_names)
 
     ! Log this change
     call log_event('Source mesh set to: '           &

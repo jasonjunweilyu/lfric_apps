@@ -19,13 +19,10 @@ class UpgradeError(Exception):
 
 """
 Copy this template and complete to add your macro
-
 class vnXX_txxx(MacroUpgrade):
     # Upgrade macro for <TICKET> by <Author>
-
     BEFORE_TAG = "vnX.X"
     AFTER_TAG = "vnX.X_txxx"
-
     def upgrade(self, config, meta_config=None):
         # Add settings
         return config, self.reports
@@ -81,7 +78,6 @@ class vn20_t85(MacroUpgrade):
         self.add_setting(
             config, ["namelist:geostrophic_forcing", "times"], "0.0"
         )
-
         return config, self.reports
 
 
@@ -106,7 +102,6 @@ class vn20_t358(MacroUpgrade):
         self.remove_setting(
             config, ["namelist:finite_element", "element_order"]
         )
-
         return config, self.reports
 
 
@@ -147,7 +142,6 @@ class vn20_t82(MacroUpgrade):
             config, ["namelist:vapour_forcing", "profile_data"], "0.0"
         )
         self.add_setting(config, ["namelist:vapour_forcing", "times"], "0.0")
-
         return config, self.reports
 
 
@@ -176,7 +170,6 @@ class vn20_t467(MacroUpgrade):
         self.add_setting(config, [nml, "i_update_precfrac"], "'homog'")
         self.add_setting(config, [nml, "l_mcr_precfrac"], l_mcr_precfrac)
         self.add_setting(config, [nml, "l_proc_fluxes"], ".false.")
-
         return config, self.reports
 
 
@@ -195,7 +188,6 @@ class vn20_t339(MacroUpgrade):
             config, ["namelist:idealised", "perturb_magnitude"], "0"
         )
         self.add_setting(config, ["namelist:idealised", "perturb_seed"], "0")
-
         return config, self.reports
 
 
@@ -210,7 +202,6 @@ class vn20_t541(MacroUpgrade):
         self.add_setting(
             config, ["namelist:radiation", "cloud_entrapment"], "'zero'"
         )
-
         return config, self.reports
 
 
@@ -240,5 +231,39 @@ class vn20_t481(MacroUpgrade):
         self.add_setting(config, [nml, "max_sigmas"], "3.0")
         self.add_setting(config, [nml, "min_sigx_ft"], "0.0")
         self.add_setting(config, [nml, "turb_var_fac_bm"], "1.0")
+        return config, self.reports
+
+
+class vn20_t450(MacroUpgrade):
+    """Upgrade macro for ticket #450 by Juan M Castillo."""
+
+    BEFORE_TAG = "vn2.0_t481"
+    AFTER_TAG = "vn2.0_t450"
+
+    def upgrade(self, config, meta_config=None):
+        # Commands From: applications/lfric2lfric/rose-meta/lfric-lfric2lfric
+        # Commands From: applications/lfric2lfric/rose-meta/lfric-lfric2lfric
+        # Commands From: applications/lfric2lfric/rose-meta/lfric-lfric2lfric
+        self.add_setting(
+            config,
+            ["namelist:lfric2lfric", "destination_mesh_name"],
+            "'dynamics'",
+        )
+        self.add_setting(
+            config,
+            ["namelist:lfric2lfric", "destination_meshfile_prefix"],
+            "'input_mesh_faces'",
+        )
+        self.add_setting(
+            config,
+            ["namelist:lfric2lfric", "source_mesh_name"],
+            "'multigrid_l1'",
+        )
+        self.add_setting(
+            config,
+            ["namelist:lfric2lfric", "source_meshfile_prefix"],
+            "'input_mesh_faces'",
+        )
+        self.remove_setting(config, ["namelist:lfric2lfric", "chain_mesh_tags"])
 
         return config, self.reports

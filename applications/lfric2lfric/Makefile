@@ -25,7 +25,7 @@ export INTERNAL_DEPENDENCIES = $(CORE_ROOT_DIR)/infrastructure \
                                $(CORE_ROOT_DIR)/components/science \
                                $(CORE_ROOT_DIR)/components/inventory \
                                $(CORE_ROOT_DIR)/components/lfric-xios \
-							   $(APPS_ROOT_DIR)/science/gungho
+                               $(APPS_ROOT_DIR)/science/gungho
 
 META_VN             ?= HEAD
 META_FILE_DIR = $(PROJECT_DIR)/rose-meta/lfric-$(PROJECT_NAME)/$(META_VN)
@@ -68,7 +68,7 @@ document-latex: TEX_STUFF      = documentation/tex
 document-latex: COMMON_FIGURES = documentation/common-figures
 document-latex: ALWAYS
 	$(Q)$(MAKE) $(QUIET_ARG) -f $(LFRIC_BUILD)/latex.mk       \
-                           SOURCE_DIR=$(SOURCE_DIR)         \
+                                 SOURCE_DIR=$(SOURCE_DIR)         \
 	                         WORKING_DIR=$(WORKING_DIR)       \
 	                         DOCUMENT_DIR=$(DOCUMENT_DIR)     \
 	                         TEX_STUFF=$(TEX_STUFF)           \
