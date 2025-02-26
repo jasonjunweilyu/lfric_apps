@@ -261,10 +261,8 @@ contains
     !---------------------------------------
     ! LFRic modules
     !---------------------------------------
-    use jules_control_init_mod, only: &
-                                     nsurft => n_land_tile, n_land_tile
-    use jules_physics_init_mod, only: decrease_sath_cond
-    use surface_config_mod, only: use_hydrology
+    use jules_control_init_mod,     only: nsurft => n_land_tile
+    use jules_physics_init_mod,     only: decrease_sath_cond
 
     ! Module imports for surf_couple_extra JULESvn5.4
     use ancil_info,               only: nsoilt, dim_cslayer, rad_nband,        &
@@ -272,6 +270,7 @@ contains
     use atm_step_local,           only: dim_cs1
     use cderived_mod,             only: delta_lambda, delta_phi
     use dust_parameters_mod,      only: ndiv
+    use jules_hydrology_mod,      only: l_hydrology
     use jules_surface_types_mod,  only: npft, ntype
     use jules_snow_mod,           only: nsmax
     use jules_soil_mod,           only: ns_deep, l_bedrock
@@ -566,7 +565,7 @@ contains
     flandg = 0.0_r_um
     land_pts = 0
     do i = 1, seg_len
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         flandg(i,1) = flandg(i,1) + real(tile_fraction(map_tile(1,i)+n-1), r_um)
       end do
     end do
@@ -710,7 +709,7 @@ contains
     ! Ancillaries:
     ! Land tile fractions (frac_surft)
     do l = 1, land_pts
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         ainfo%frac_surft(l, n) = real(tile_fraction(map_tile(1,ainfo%land_index(l))+n-1), r_um) &
              / flandg(ainfo%land_index(l), 1)
         fluxes%ei_surft(l, n) = real(snowice_sublimation(map_tile(1,ainfo%land_index(l))+n-1), r_um)
@@ -750,7 +749,7 @@ contains
     end if
 
     ! Get catch_snow_surft and catch_surft from call to sparm
-    call sparm(land_pts, n_land_tile, ainfo%surft_pts, ainfo%surft_index,      &
+    call sparm(land_pts, nsurft, ainfo%surft_pts, ainfo%surft_index,           &
                ainfo%frac_surft, progs%canht_pft, progs%lai_pft,               &
                psparms%z0m_soil_gb, psparms%catch_snow_surft,                  &
                psparms%catch_surft, psparms%z0_surft, psparms%z0h_bare_surft,  &
@@ -784,7 +783,7 @@ contains
     ! Prognostics:
     ! Land tile temperatures
     do l = 1, land_pts
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         progs%tstar_surft(l, n) = real(tile_temperature(map_tile(1,ainfo%land_index(l))+n-1), r_um)
       end do
     end do
@@ -850,7 +849,7 @@ contains
 
     ! Canopy water on each tile (canopy_surft)
     do l = 1, land_pts
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         progs%canopy_surft(l, n) = real(canopy_water(map_tile(1,ainfo%land_index(l))+n-1), r_um)
       end do
     end do
@@ -858,7 +857,7 @@ contains
     ! Snow prognostics
     do l = 1, land_pts
       i_snow = 0
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         ! Lying snow mass on land tiles
         progs%snow_surft(l,n) = real(tile_snow_mass(map_tile(1,ainfo%land_index(l))+n-1), r_um)
         ! Snow grain size on tiles (microns)
@@ -890,7 +889,7 @@ contains
 
     ! Snow melt
     do l = 1, land_pts
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         fluxes%melt_surft(l,n) = real(snowice_melt(map_tile(1,ainfo%land_index(l))+n-1), r_um)
       end do
     end do
@@ -986,7 +985,7 @@ contains
   !---------------------------------------------------------------------------
   ! Return the updated prognostic values to jules_prognostics.
 
-    do n = 1, n_land_tile
+    do n = 1, nsurft
       do l = 1, land_pts
         ! Canopy water on each tile (canopy_surft)
         canopy_water(map_tile(1,ainfo%land_index(l))+n-1) = real(progs%canopy_surft(l,n), r_def)
@@ -1007,7 +1006,7 @@ contains
       end do
     end do
     i_snow = 0
-    do n = 1, n_land_tile
+    do n = 1, nsurft
       do j = 1, nsmax
         do l = 1, land_pts
           ! Thickness of snow layers
@@ -1058,14 +1057,14 @@ contains
     end if
 
     if (.not. associated(grid_snow_mass, empty_real_data) .and. &
-         use_hydrology) then
+         l_hydrology) then
       do i = 1, seg_len
         grid_snow_mass(map_2d(1,i)) = progs%snow_mass_ij(i,1)
       end do
     end if
 
     if (.not. associated(throughfall, empty_real_data) ) then
-      do n = 1, n_land_tile
+      do n = 1, nsurft
         do l = 1, land_pts
           throughfall(map_tile(1,ainfo%land_index(l))+n-1) = fluxes%tot_tfall_surft(l,n)
         end do

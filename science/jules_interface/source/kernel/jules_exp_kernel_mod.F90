@@ -27,13 +27,14 @@ module jules_exp_kernel_mod
   use fs_continuity_mod,      only : W3, Wtheta
   use kernel_mod,             only : kernel_type
   use radiation_config_mod,   only : topography, topography_horizon
-  use surface_config_mod,     only : albedo_obs, sea_surf_alg,           &
-                                     sea_surf_alg_specified_roughness,   &
-                                     z0m_specified_nml => z0m_specified, &
+  use jules_radiation_config_mod,  only : l_albedo_obs
+  use jules_sea_seaice_config_mod, only : iseasurfalg,                         &
+                                     iseasurfalg_specified_roughness,          &
+                                     buddy_sea, buddy_sea_on
+  use surface_config_mod,     only : z0m_specified_nml => z0m_specified, &
                                      z0h_specified_nml => z0h_specified, &
-                                     buddy_sea, buddy_sea_on,            &
                                      emis_method_soil, emis_method_soil_fixed
-  use water_constants_mod,     only: tfs
+  use water_constants_mod,    only : tfs
 
   implicit none
 
@@ -921,7 +922,7 @@ contains
     ! other logicals
     l_aero_classic=.false.
     ! surface forcing
-    if ( sea_surf_alg == sea_surf_alg_specified_roughness ) then
+    if ( iseasurfalg == iseasurfalg_specified_roughness ) then
       l_spec_z0 = .true.
       z0m_specified = z0m_specified_nml
       z0h_specified = z0h_specified_nml
@@ -946,7 +947,7 @@ contains
 
     call jules_vars_alloc(land_field,ntype,n_land_tile,rad_nband,nsoilt,       &
                           sm_levels, seg_len, 1, npft, bl_levels, pdims_s,     &
-                          pdims, albedo_obs, cansnowtile, l_deposition,        &
+                          pdims, l_albedo_obs, cansnowtile, l_deposition,        &
                           jules_vars_data)
     call jules_vars_assoc(jules_vars,jules_vars_data)
 
@@ -1200,7 +1201,7 @@ contains
     end do
 
     ! Scaling factors needed for use in surface exchange code
-    if (albedo_obs) then
+    if (l_albedo_obs) then
       do l = 1, land_field
         if (coast%fland(l) > 0.0_r_um) then
           i_tile = 0

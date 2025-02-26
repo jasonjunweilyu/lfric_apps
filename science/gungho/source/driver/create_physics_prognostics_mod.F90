@@ -68,7 +68,7 @@ module create_physics_prognostics_mod
 
   use jules_surface_config_mod,       only : srf_ex_cnv_gust, l_vary_z0m_soil,  &
                                              l_urban2t
-  use surface_config_mod,             only : albedo_obs, sea_alb_var_chl
+  use jules_radiation_config_mod,     only : l_albedo_obs, l_sea_alb_var_chl
   use specified_surface_config_mod,   only : surf_temp_forcing, &
                                              surf_temp_forcing_int_flux
   use spectral_gwd_config_mod,        only : add_cgw
@@ -221,7 +221,7 @@ contains
     !========================================================================
 
     ! 2D fields, might need checkpointing
-    if (surface == surface_jules .and. albedo_obs) then
+    if (surface == surface_jules .and. l_albedo_obs) then
       checkpoint_flag = .true.
     else
       checkpoint_flag = .false.
@@ -778,7 +778,7 @@ contains
     call processor%apply(make_spec('surface_conductance', main%surface,         &
          ckp=checkpoint_flag))
     call processor%apply(make_spec('chloro_sea', main%surface,                  &
-        ckp=(checkpoint_flag .and. sea_alb_var_chl)))
+        ckp=(checkpoint_flag .and. l_sea_alb_var_chl)))
 
     ! Fields on surface tiles, might need checkpointing
     call processor%apply(make_spec('tile_fraction', main%surface,               &
@@ -797,7 +797,7 @@ contains
     ! vector_space=>function_space_collection%get_fs(twod_mesh, 0, 0, W3,
     !     get_ndata_val('land_tile_rad_band'))
     call processor%apply(make_spec('albedo_obs_scaling', main%surface,          &
-        ckp=(checkpoint_flag .and. albedo_obs)))
+        ckp=(checkpoint_flag .and. l_albedo_obs)))
 
     ! Fields on plant functional types, might need checkpointing
     call processor%apply(make_spec('leaf_area_index', main%surface,             &

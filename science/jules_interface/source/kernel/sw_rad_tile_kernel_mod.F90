@@ -197,7 +197,6 @@ subroutine sw_rad_tile_code(nlayers, seg_len,                       &
                                        weight_blue
   use atm_step_local,            only: dim_cs1
   use atm_fields_bounds_mod,     only: pdims_s, pdims
-  use surface_config_mod,        only: albedo_obs
   use nlsizes_namelist_mod,      only: ntiles, sm_levels, bl_levels
   use jules_surface_types_mod,   only: ntype, npft, ice, nnpft
   use jules_sea_seaice_mod,      only: nice, nice_use
@@ -725,7 +724,7 @@ subroutine sw_rad_tile_code(nlayers, seg_len,                       &
   end do ! i_band
 
   ! Scaling factors needed for use in surface exchange code
-  if ( albedo_obs ) then
+  if ( l_albedo_obs ) then
     df_rtile = 0
     do i_band = 1, rad_nband
       do n = 1, n_land_tile

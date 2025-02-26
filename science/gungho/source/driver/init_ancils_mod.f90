@@ -53,8 +53,8 @@ module init_ancils_mod
                                              easyaerosol_lw
   use socrates_init_mod,              only : n_sw_band, n_lw_band
   use jules_surface_config_mod,       only : l_vary_z0m_soil, l_urban2t
-  use surface_config_mod,             only : sea_alb_var_chl, albedo_obs, &
-                                             amip_ice_thick
+  use jules_radiation_config_mod,     only : l_sea_alb_var_chl, l_albedo_obs
+  use surface_config_mod,             only : amip_ice_thick
   use radiation_config_mod,           only : topography, topography_slope, &
                                              topography_horizon, &
                                              n_horiz_ang, n_horiz_layer
@@ -211,7 +211,7 @@ contains
     endif
 
     !=====  SEA ANCILS  =====
-    if ( sea_alb_var_chl ) then
+    if ( l_sea_alb_var_chl ) then
       call sea_time_axis%initialise("sea_time", file_id="sea_ancil", &
                                     interp_flag=interp_flag, pop_freq="daily")
       call setup_ancil_field("chloro_sea", depository, ancil_fields, mesh, &
@@ -298,7 +298,7 @@ contains
     end if
 
     !=====  RADIATION ANCILS  =====
-    if ( albedo_obs ) then
+    if ( l_albedo_obs ) then
       call albedo_vis_time_axis%initialise("albedo_vis_time",          &
                                            file_id="albedo_vis_ancil", &
                                            interp_flag=interp_flag,    &

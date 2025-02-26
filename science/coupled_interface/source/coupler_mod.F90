@@ -12,8 +12,8 @@ module coupler_mod
                                             get_coupling_fields, &
                                             get_coupling_from_collection
   use driver_water_constants_mod,     only: T_freeze_h2o_sea
-  use surface_config_mod,             only: therm_cond_sice, &
-                                            therm_cond_sice_snow
+  use jules_sea_seaice_config_mod,    only: therm_cond_sice => kappai,         &
+                                            therm_cond_sice_snow => kappai_snow
   use field_mod,                      only: field_type
   use field_parent_mod,               only: field_parent_type
   use pure_abstract_field_mod,        only: pure_abstract_field_type
@@ -48,9 +48,10 @@ module coupler_mod
 
 #if defined(UM_PHYSICS)
   use jules_control_init_mod,         only: n_sea_tile, first_sea_tile
-  ! Note: n_sea_ice_tile has to be retrieved from surface_config_mod and not
-  !       jules_control_init_mod as the coupler is initialised before jules
-  use surface_config_mod,             only: n_sea_ice_tile
+  ! Note: n_sea_ice_tile has to be retrieved from jules_sea_seaice_config_mod
+  !       and not jules_control_init_mod as the coupler is initialised before
+  !       jules
+  use jules_sea_seaice_config_mod,    only: n_sea_ice_tile => nice
 #endif
 
   implicit none

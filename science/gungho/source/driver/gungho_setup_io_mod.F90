@@ -133,7 +133,7 @@ module gungho_setup_io_mod
                                        internal_flux_method_non_uniform, &
                                        surf_temp_forcing, &
                                        surf_temp_forcing_int_flux
-  use surface_config_mod,        only: sea_alb_var_chl, albedo_obs
+  use jules_radiation_config_mod, only: l_sea_alb_var_chl, l_albedo_obs
   use aerosol_config_mod,        only: glomap_mode,               &
                                        glomap_mode_climatology,   &
                                        glomap_mode_dust_and_clim, &
@@ -388,7 +388,7 @@ module gungho_setup_io_mod
                                                          io_mode=FILE_MODE_READ ) )
 
         ! Set sea chlorophyll ancil filename from namelist
-        if ( sea_alb_var_chl ) then
+        if ( l_sea_alb_var_chl ) then
           write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
                                    trim(sea_ancil_path)
           call files_list%insert_item( lfric_xios_file_type( ancil_fname,      &
@@ -396,7 +396,7 @@ module gungho_setup_io_mod
                                                            io_mode=FILE_MODE_READ ) )
         end if
 
-        if ( albedo_obs ) then
+        if ( l_albedo_obs ) then
           ! Set albedo_vis ancil filename from namelist
           write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
                                    trim(albedo_vis_ancil_path)

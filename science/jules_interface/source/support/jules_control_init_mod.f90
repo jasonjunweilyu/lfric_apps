@@ -9,7 +9,7 @@
 module jules_control_init_mod
 
   ! LFRic namelists which have been read
-  use surface_config_mod,          only : n_sea_ice_tile_in => n_sea_ice_tile
+  use jules_sea_seaice_config_mod,          only : nice_in => nice
 
   ! Other LFRic modules used
   use constants_mod,        only : i_def
@@ -68,6 +68,7 @@ contains
     use ancil_info, only: jules_dim_cs1 => dim_cs1, nsurft
     use atm_step_local, only: co2_dim_len, co2_dim_row, &
                               dim_cs1
+    use jules_sea_seaice_mod, only: nice, nice_use
     use jules_soil_mod, only: jules_sm_levels => sm_levels
     use jules_surface_types_mod, only: npft, nnvg, ntype, brd_leaf, ndl_leaf, &
                                        c3_grass, c4_grass, shrub, urban,      &
@@ -112,26 +113,28 @@ contains
       call print_nlist_jules_surface_types()
       call set_surface_type_ids()
       call check_jules_surface_types()
-      n_sea_ice_tile = n_sea_ice_tile_in
+      nice  = nice_in
     else
       write( log_scratch_space, '(A)' ) 'No surface scheme is being used.'
       call log_event( log_scratch_space, LOG_LEVEL_INFO )
       ! create_physics_prognostics needs something to be allocated for
       ! pft_space, surft_space and sice_space
-      npft           = 1
-      ntype          = 1
-      n_sea_ice_tile = 1
+      npft  = 1
+      ntype = 1
+      nice  = 1
     end if
 
     ! Number of land tiles; currently called different things in different
     ! places. Should probably be consolidated to only use one in LFRic
     ! interface; n_land_tile probably as ntiles now exists only in the UM, while
-    ! nsurft in used in JULES. nsurft would be prefered, although it could be
+    ! nsurft is used in JULES. nsurft would be prefered, although it could be
     ! confused with n_surf_tile, which includes the sea and sea-ice tiles in
     ! LFRic.
-    n_land_tile = ntype
-    nsurft      = ntype
-    ntiles      = ntype
+    n_land_tile    = ntype
+    nsurft         = ntype
+    ntiles         = ntype
+    n_sea_ice_tile = nice
+    nice_use       = nice
 
     ! Total number of surface tiles, used to dimension LFRic
     ! multidata fields

@@ -24,7 +24,7 @@ module bl_exp_alg_mod
                                            get_rdz_w3, get_dtrdz_wth
   use map_fd_to_prognostics_alg_mod, only: set_wind
   use jules_surface_config_mod,      only: formdrag, formdrag_dist_drag
-  use surface_config_mod,            only: buddy_sea, buddy_sea_on
+  use jules_sea_seaice_config_mod,   only: buddy_sea, buddy_sea_on
   use bl_option_mod,                 only: l_calc_tau_at_p
   use microphysics_config_mod,       only: microphysics_casim
   use bl_option_mod,                 only: l_noice_in_turb
