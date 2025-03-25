@@ -390,6 +390,7 @@ module coupler_mod
                          trim(sname), " NOT exchanged on this timestep"
           call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
         end if
+        call coupler_exchange_2d%clear()
 
         ! If coupling was successful then reset field to 0 ready to start
         ! accumulation for the next exchange
@@ -553,6 +554,7 @@ module coupler_mod
         call coupler_exchange_2d%set_time(modeldb%clock)
         ! Call through to coupler_receive_2d in coupler_exchange_2d_mod
         call coupler_exchange_2d%copy_to_lfric(ierror)
+        call coupler_exchange_2d%clear()
       class default
         write(log_scratch_space, '(2A)' ) "PROBLEM cpl_rcv: field ", &
                         trim(field%get_name())//" is NOT field_type"
