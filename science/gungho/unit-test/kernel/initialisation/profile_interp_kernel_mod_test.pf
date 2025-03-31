@@ -7,7 +7,7 @@
 !>
 module profile_interp_kernel_mod_test
 
-use constants_mod,                 only: i_def, r_def
+use constants_mod,                 only: i_def, r_def, l_def
 
 use, intrinsic :: iso_fortran_env, only: real64
 use profile_interp_kernel_mod,     only: profile_size,   &
@@ -133,17 +133,19 @@ contains
 
     class(profile_interp_test_type), intent(inout) :: this
 
-    integer(i_def)         :: k, kp
-    real(r_def)            :: target_value, xi
-    real(r_def), parameter :: tol = 1.0e-9_r_def
-    real(r_def)            :: use_tol
+    integer(i_def)            :: k, kp
+    real(r_def)               :: target_value, xi
+    real(r_def), parameter    :: tol = 1.0e-9_r_def
+    real(r_def)               :: use_tol
+    logical(l_def), parameter :: profile_extrap = .true.
 
     ! Interpolate input profile onto model grid
-    call profile_interp_code( nlayers,   &
-                              theta,     &
-                              height_wt, &
-                              ndf_wt,    &
-                              undf_wt,   &
+    call profile_interp_code( nlayers,        &
+                              theta,          &
+                              height_wt,      &
+                              profile_extrap, &
+                              ndf_wt,         &
+                              undf_wt,        &
                               map_wt )
 
     ! Check the interpolated profile

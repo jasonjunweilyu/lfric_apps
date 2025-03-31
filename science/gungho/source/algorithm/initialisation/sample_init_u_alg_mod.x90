@@ -6,7 +6,7 @@
 !> @brief Initialise wind components by sampling specified profiles
 module sample_init_u_alg_mod
 
-  use constants_mod,                 only: i_def
+  use constants_mod,                 only: i_def, l_def, rmdi
   use field_mod,                     only: field_type
   use finite_element_config_mod,     only: element_order_h, element_order_v
   use fs_continuity_mod,             only: W3, Wtheta
@@ -51,6 +51,7 @@ contains
     type( field_type ), intent( inout ) :: u
 
     integer( kind=i_def ) :: mesh_id
+    logical( kind=l_def ) :: profile_extrap
 
     type( mesh_type ),  pointer :: mesh => null()
     type( field_type ), pointer :: panel_id => null()
@@ -79,6 +80,8 @@ contains
                 function_space_collection%get_fs( mesh, element_order_h, &
                                                   element_order_v, Wtheta ) )
 
+    profile_extrap = .true.
+
     profile_size = profile_size_uv
     if ( profile_size == 1) then
       call invoke( setval_c( u_in_w3, profile_data_u(1) ) )
@@ -86,9 +89,13 @@ contains
     else
       profile_heights(1:profile_size) = profile_heights_uv(1:profile_size)
       profile_data(1:profile_size) = profile_data_u(1:profile_size)
-      call invoke( profile_interp_kernel_type( u_in_w3, height_w3 ) )
+      call invoke( setval_c( u_in_w3, rmdi ),                      &
+                   profile_interp_kernel_type( u_in_w3, height_w3, &
+                                               profile_extrap ) )
       profile_data(1:profile_size) = profile_data_v(1:profile_size)
-      call invoke( profile_interp_kernel_type( v_in_w3, height_w3 ) )
+      call invoke( setval_c( v_in_w3, rmdi ),                      &
+                   profile_interp_kernel_type( v_in_w3, height_w3, &
+                                               profile_extrap ) )
     end if
 
     profile_size = profile_size_w
@@ -97,7 +104,9 @@ contains
     else
       profile_heights(1:profile_size) = profile_heights_w(1:profile_size)
       profile_data(1:profile_size) = profile_data_w(1:profile_size)
-      call invoke( profile_interp_kernel_type( w_in_wth, height_wth ) )
+      call invoke( setval_c( w_in_wth, rmdi ),                       &
+                   profile_interp_kernel_type( w_in_wth, height_wth, &
+                                               profile_extrap ) )
     end if
 
     call set_wind( u, u_in_w3, v_in_w3, w_in_wth )

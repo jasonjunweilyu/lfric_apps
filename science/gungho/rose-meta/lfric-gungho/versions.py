@@ -1,3 +1,4 @@
+import re
 import sys
 
 from metomi.rose.upgrade import MacroUpgrade
@@ -18,16 +19,44 @@ class UpgradeError(Exception):
     __str__ = __repr__
 
 
-"""
-Copy this template and complete to add your macro
+class vn21_t83(MacroUpgrade):
+    """Upgrade macro for ticket #83 by Chris Smith."""
 
-class vnXX_txxx(MacroUpgrade):
-    # Upgrade macro for <TICKET> by <Author>
-
-    BEFORE_TAG = "vnX.X"
-    AFTER_TAG = "vnX.X_txxx"
+    BEFORE_TAG = "vn2.1"
+    AFTER_TAG = "vn2.1_t83"
 
     def upgrade(self, config, meta_config=None):
-        # Add settings
+        # Commands From: rose-meta/lfric-gungho
+        """Add theta_relax namelist to configuration source list"""
+        source = self.get_setting_value(
+            config, ["file:configuration.nml", "source"]
+        )
+        source = re.sub(
+            r"\(namelist:temp_tend_data\)",
+            r"(namelist:temp_tend_data)" + "\n" + " (namelist:theta_relax)",
+            source,
+        )
+        self.change_setting_value(
+            config, ["file:configuration.nml", "source"], source
+        )
+        """Add theta_relaxation setting to external_forcing namelist"""
+        self.add_setting(
+            config, ["namelist:external_forcing", "theta_relaxation"], ".false."
+        )
+        """Data for theta_relax namelist"""
+        self.add_setting(config, ["namelist:theta_relax"])
+        self.add_setting(
+            config, ["namelist:theta_relax", "coordinate"], "'height'"
+        )
+        self.add_setting(config, ["namelist:theta_relax", "heights"], "0.0")
+        self.add_setting(
+            config, ["namelist:theta_relax", "number_heights"], "1"
+        )
+        self.add_setting(config, ["namelist:theta_relax", "number_times"], "1")
+        self.add_setting(
+            config, ["namelist:theta_relax", "profile_data"], "0.0"
+        )
+        self.add_setting(config, ["namelist:theta_relax", "times"], "0.0")
+        self.add_setting(config, ["namelist:theta_relax", "timescale"], "1.0")
+
         return config, self.reports
-"""

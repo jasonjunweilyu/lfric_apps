@@ -76,7 +76,7 @@ contains
     real( kind=r_def )    :: u_forcing_now( number_heights )
     real( kind=r_def )    :: v_forcing_now( number_heights )
     integer( kind=i_def ) :: mesh_id, k
-    logical( kind=l_def ) :: pressure_coord
+    logical( kind=l_def ) :: pressure_coord, profile_extrap
     type( field_type )    :: du_in_w3
     type( field_type )    :: dv_in_w3
     type( field_type )    :: dw_in_wth
@@ -141,6 +141,9 @@ contains
     !>       these data should be passed through the argument list of the invoke.
       profile_size    = number_heights
       profile_heights( 1:profile_size) = heights(1:profile_size )
+      ! Extend forcing beyond range of specified heights - particularly
+      ! useful when pressure coordinates are used.
+      profile_extrap = .true.
 
       if ( pressure_coord ) then
         ! Interpolation is linear in exner
@@ -154,7 +157,8 @@ contains
       if ( profile_size == 1 ) then
         call invoke( setval_c( du_in_w3, profile_data(1) ) )
       else
-        call invoke( profile_interp_kernel_type( du_in_w3, height_w3 ) )
+        call invoke( profile_interp_kernel_type( du_in_w3, height_w3, &
+                                                 profile_extrap ) )
       end if
       call invoke( inc_a_times_X(dt_rdef, du_in_w3) )
 
@@ -163,7 +167,8 @@ contains
       if ( profile_size == 1 ) then
         call invoke( setval_c( dv_in_w3, profile_data(1) ) )
       else
-        call invoke( profile_interp_kernel_type( dv_in_w3, height_w3 ) )
+        call invoke( profile_interp_kernel_type( dv_in_w3, height_w3, &
+                                                 profile_extrap ) )
       end if
       call invoke( inc_a_times_X(dt_rdef, dv_in_w3) )
 

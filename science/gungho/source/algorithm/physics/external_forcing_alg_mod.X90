@@ -14,6 +14,7 @@ module external_forcing_alg_mod
                                              theta_forcing_shallow_hot_jupiter,  &
                                              theta_forcing_deep_hot_jupiter,     &
                                              theta_forcing_temp_tend,            &
+                                             theta_relaxation,                   &
                                              vapour_forcing,                     &
                                              vapour_forcing_none,                &
                                              vapour_forcing_profile,             &
@@ -67,6 +68,7 @@ module external_forcing_alg_mod
   use sci_set_any_dof_kernel_mod,      only: set_any_dof_kernel_type
 
   use temp_tend_profile_alg_mod,       only: temp_tend_profile_alg
+  use theta_relax_alg_mod,             only: theta_relax_alg
   use geostrophic_forcing_alg_mod,     only: geostrophic_forcing_alg
   use vapour_forcing_profile_alg_mod,  only: vapour_forcing_profile_alg
   use wind_forcing_profile_alg_mod,    only: wind_forcing_profile_alg
@@ -96,6 +98,7 @@ contains
   !> @param[in]     exner_in_wth       Exner pressure on Wtheta space
   !> @param[in]     mr_n               Mixing ratios at start of timestep
   !> @param[in]     cloud_fields       Group of cloud fields
+  !> @param[in]     twod_mesh          2d mesh
   !> @param[in]     dt                 The model timestep length
   !> @param[in]     time_now           Current model time (seconds)
   !> @param[out]    dtheta_forcing     Theta increment from external forcing
@@ -108,8 +111,8 @@ contains
   !> @param[in,out] vapour_forcing_done Flag to say if vapour code run
   !> @param[in,out] wind_forcing_done  Flag to say if wind code run
   subroutine external_forcing_alg(derived_fields, u, theta, exner,             &
-                                  exner_in_wth, mr_n, cloud_fields, dt,        &
-                                  time_now, dtheta_forcing, du_forcing,        &
+                                  exner_in_wth, mr_n, cloud_fields, twod_mesh, &
+                                  dt, time_now, dtheta_forcing, du_forcing,    &
                                   dmv_forcing, dmcl_forcing, dcfl_forcing,     &
                                   dbcf_forcing,                                &
                                   theta_forcing_done, vapour_forcing_done,     &
@@ -117,17 +120,17 @@ contains
 
     implicit none
 
-    type( field_collection_type ), intent(in) :: derived_fields, cloud_fields
-    type( field_type ), intent( in )  :: u, theta, exner, exner_in_wth
-    type( field_type ), intent( in )  :: mr_n(nummr)
-    type( field_type ), intent( out ) :: dtheta_forcing, du_forcing
-    type( field_type ), intent( out ) :: dmv_forcing, dmcl_forcing, &
-                                         dcfl_forcing, dbcf_forcing
-    real( kind=r_def ), intent( in )  :: dt, time_now
-
-    logical( kind=l_def ), intent(inout) :: theta_forcing_done,  &
-                                            vapour_forcing_done, &
-                                            wind_forcing_done
+    type( field_collection_type ), intent( in ) :: derived_fields, cloud_fields
+    type( field_type ), intent( in )            :: u, theta, exner, exner_in_wth
+    type( field_type ), intent( in )            :: mr_n(nummr)
+    type( field_type ), intent( out )           :: dtheta_forcing, du_forcing
+    type( field_type ), intent( out )           :: dmv_forcing, dmcl_forcing, &
+                                                   dcfl_forcing, dbcf_forcing
+    type( mesh_type ),  intent( in ), pointer   :: twod_mesh
+    real( kind=r_def ), intent( in )            :: dt, time_now
+    logical( kind=l_def ), intent(inout)        :: theta_forcing_done,  &
+                                                   vapour_forcing_done, &
+                                                   wind_forcing_done
 
     ! Temporary field to unpack from field collection
     type( field_type ), pointer :: u_physics => null()
@@ -142,7 +145,7 @@ contains
 
     type( field_type ) :: u_smoothed, dx, visc_m
 
-    integer( kind=i_def ) :: order
+    integer( kind=i_def ) :: order, nlayers
     real( kind=r_def )    :: diffusion_coefficient_scaled, dx_sum, dx_size
 
     type( mesh_type ),  pointer :: mesh => null()
@@ -153,10 +156,12 @@ contains
     mesh => theta%get_mesh()
     height_wth => get_height( Wtheta, mesh%get_id() )
 
-    if (theta_forcing /= theta_forcing_none) then
-
+    if ( theta_forcing /= theta_forcing_none .or. theta_relaxation ) then
       call dtheta_forcing%initialise( vector_space = theta%get_function_space() )
       call invoke( setval_c(dtheta_forcing, 0.0_r_def) )
+    end if
+
+    if (theta_forcing /= theta_forcing_none) then
 
       chi => get_coordinates( mesh%get_id() )
       panel_id => get_panel_id( mesh%get_id() )
@@ -229,6 +234,13 @@ contains
 
       nullify( chi, panel_id )
 
+    end if
+
+    if ( theta_relaxation ) then
+      nlayers = mesh%get_nlayers()
+      call theta_relax_alg( dtheta_forcing, theta, exner_in_wth, &
+                            twod_mesh, time_now, nlayers )
+      theta_forcing_done = .true.
     end if
 
 #ifdef UM_PHYSICS

@@ -7,12 +7,13 @@
 module profile_interp_kernel_mod
 
 use argument_mod,      only: arg_type,                  &
-                             GH_FIELD, GH_REAL,         &
+                             GH_FIELD, GH_SCALAR,       &
+                             GH_REAL,  GH_LOGICAL,      &
                              GH_WRITE, GH_READ,         &
                              ANY_DISCONTINUOUS_SPACE_1, &
                              CELL_COLUMN
 
-use constants_mod,     only: r_def, i_def
+use constants_mod,     only: r_def, i_def, l_def
 use kernel_mod,        only: kernel_type
 
 implicit none
@@ -29,9 +30,10 @@ integer(i_def), public :: profile_size
 !> The type declaration for the kernel. Contains the metadata needed by the Psy layer
 type, public, extends(kernel_type) :: profile_interp_kernel_type
     private
-    type(arg_type) :: meta_args(2) = (/                                    &
-         arg_type(GH_FIELD, GH_REAL, GH_WRITE, ANY_DISCONTINUOUS_SPACE_1), &
-         arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1)  &
+    type(arg_type) :: meta_args(3) = (/                                        &
+         arg_type(GH_FIELD,  GH_REAL,    GH_WRITE, ANY_DISCONTINUOUS_SPACE_1), &
+         arg_type(GH_FIELD,  GH_REAL,    GH_READ,  ANY_DISCONTINUOUS_SPACE_1), &
+         arg_type(GH_SCALAR, GH_LOGICAL, GH_READ)                              &
          /)
     integer :: operates_on = CELL_COLUMN
 contains
@@ -55,6 +57,7 @@ contains
 !> @param[in] undf Number of unique degrees of freedom
 !> @param[in] map Dofmap for the cell at the base of the column
 subroutine profile_interp_code( nlayers, field, height, &
+                                profile_extrap,         &
                                 ndf, undf, map )
 
 implicit none
@@ -66,6 +69,8 @@ integer(kind=i_def), dimension(ndf), intent(in)  :: map
 
 real(kind=r_def), dimension(undf), intent(inout) :: field
 real(kind=r_def), dimension(undf), intent(in)    :: height
+
+logical(kind=l_def), intent(in)                  :: profile_extrap
 
 ! Loop counter over output profile
 integer(kind=i_def) :: k
@@ -136,9 +141,9 @@ else
     ! If output point is outside the range of the input coordinate, use
     ! constant extrapolation
     if ( height(kp) <= coord_lowest ) then
-      field(kp) = data_at_lowest
+      if ( profile_extrap ) field(kp) = data_at_lowest
     else if ( height(kp) >= coord_highest ) then
-      field(kp) = data_at_highest
+      if ( profile_extrap ) field(kp) = data_at_highest
     else
       ! Locate the position of the output point on the input coordinate
       do input_pt = 1, profile_size - 1
@@ -149,9 +154,9 @@ else
       end do
       ! Linearly interpolate the input data to the output point
       interp_weight = ( height(kp) - profile_heights(input_pt) ) / &
-                     ( profile_heights(input_pt+1) - profile_heights(input_pt) )
+                      ( profile_heights(input_pt+1) - profile_heights(input_pt) )
       field(kp) = (1.0_r_def - interp_weight) * profile_data(input_pt) + &
-                                      interp_weight * profile_data(input_pt+1)
+                                        interp_weight * profile_data(input_pt+1)
     end if
 
   end do

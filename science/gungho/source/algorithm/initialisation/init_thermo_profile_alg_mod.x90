@@ -9,7 +9,7 @@
 
 module init_thermo_profile_alg_mod
 
-use constants_mod,               only: r_def, i_def, rmdi
+use constants_mod,               only: r_def, i_def, l_def, rmdi
 use kernel_mod,                  only: kernel_type
 use field_mod,                   only: field_type
 use formulation_config_mod,      only: moisture_formulation,    &
@@ -59,6 +59,7 @@ type(field_type), optional, intent(inout) :: mr_v
 ! Not needed when formulation is dry
 
 integer(kind=i_def) :: mesh_id
+logical(kind=l_def) :: profile_extrap
 type(field_type), pointer :: chi(:) => null()
 type(field_type), pointer :: panel_id => null()
 
@@ -68,6 +69,7 @@ mesh_id = theta%get_mesh_id()
 chi => get_coordinates(mesh_id)
 panel_id => get_panel_id(mesh_id)
 height_wth => get_height(Wtheta, mesh_id)
+profile_extrap = .true.
 
 profile_size    = temp_prof_size
 profile_data(1:profile_size)    = temp_prof_data(1:profile_size)
@@ -75,7 +77,9 @@ profile_heights(1:profile_size) = temp_prof_heights(1:profile_size)
 if ( profile_size == 1) then
   call invoke( setval_c( theta, profile_data(1) ) )
 else
-  call invoke( profile_interp_kernel_type( theta, height_wth ) )
+  call invoke( setval_c( theta, rmdi ),                       &
+               profile_interp_kernel_type( theta, height_wth, &
+                                           profile_extrap ) )
 end if
 
 if ( moisture_formulation /= moisture_formulation_dry ) then
@@ -85,7 +89,9 @@ if ( moisture_formulation /= moisture_formulation_dry ) then
   if ( profile_size == 1) then
     call invoke( setval_c( mr_v, profile_data(1) ) )
   else
-    call invoke( profile_interp_kernel_type( mr_v, height_wth ) )
+    call invoke( setval_c( mr_v, rmdi ),                        &
+                 profile_interp_kernel_type( mr_v, height_wth,  &
+                                             profile_extrap ) )
   end if
 end if
 

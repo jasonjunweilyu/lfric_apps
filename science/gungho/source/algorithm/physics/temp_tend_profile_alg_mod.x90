@@ -67,7 +67,7 @@ real(kind=r_def), intent(in)         :: time_now
 real(kind=r_def)    :: dt_rdef
 real(kind=r_def)    :: temp_tend_now( number_heights )
 integer(kind=i_def) :: mesh_id, k
-logical(kind=l_def) :: pressure_coord
+logical(kind=l_def) :: pressure_coord, profile_extrap
 
 type( field_type ), pointer :: height_wth => null()
 
@@ -116,7 +116,12 @@ else
   if ( profile_size == 1 ) then
     call invoke( setval_c( dtheta, profile_data(1) ) )
   else
-    call invoke( profile_interp_kernel_type( dtheta, height_wth ) )
+    ! Extend forcing beyond range of specified heights - particularly
+    ! useful when pressure coordinates are used.
+    profile_extrap = .true.
+    call invoke( setval_c( dtheta, 0.0_r_def ),                  &
+                 profile_interp_kernel_type( dtheta, height_wth, &
+                                             profile_extrap ) )
   end if
   call invoke( inc_a_times_X(dt_rdef, dtheta), &
                inc_X_divideby_Y(dtheta, exner_in_wth) )
