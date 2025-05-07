@@ -24,7 +24,7 @@
         "opt_confs": ["eternal_fountain_xz_split_hvh"],
         "resolution": "BiP100x10-20x20",
         "DT": 2,
-        "tsteps": 500,
+        "tsteps": 250,
         "mpi_parts": 4,
         "wallclock": 60,
         "kgo_checks": [],

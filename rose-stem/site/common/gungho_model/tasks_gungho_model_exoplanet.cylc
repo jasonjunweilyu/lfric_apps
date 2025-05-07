@@ -17,8 +17,9 @@
         "DT": 3600,
         "mpi_parts": 54,
         "tsteps": 21600,
-        "crun": 30,
+        "crun": 3,
         "crun_compare": false,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR held-suarez earth dcmip 30 31"
     }) %}
@@ -31,8 +32,9 @@
         "DT": 1800,
         "mpi_parts": 216,
         "tsteps": 43200,
-        "crun": 30,
+        "crun": 3,
         "crun_compare": false,
+         "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR held-suarez earth dcmip 30 31"
     }) %}
@@ -45,8 +47,9 @@
         "DT": 3600,
         "mpi_parts": 54,
         "tsteps": 28800,
-        "crun": 40,
+        "crun": 4,
         "crun_compare": false,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR earth-like earth uniform 32 33"
     }) %}
@@ -59,8 +62,9 @@
         "DT": 1800,
         "mpi_parts": 216,
         "tsteps": 57600,
-        "crun": 40,
+        "crun": 4,
         "crun_compare": false,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR earth-like earth uniform 32 33"
     }) %}
@@ -73,8 +77,9 @@
         "DT": 3600,
         "mpi_parts": 54,
         "tsteps": 28800,
-        "crun": 40,
+        "crun": 4,
         "crun_compare": false,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR tidally-locked-earth earth uniform 32 33"
     }) %}
@@ -87,8 +92,9 @@
         "DT": 1800,
         "mpi_parts": 216,
         "tsteps": 57600,
-        "crun": 40,
+        "crun": 4,
         "crun_compare": false,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR tidally-locked-earth earth uniform 32 33"
     }) %}
@@ -101,8 +107,9 @@
         "DT": 2400,
         "mpi_parts": 54,
         "tsteps": 43200,
-        "crun": 40,
+        "crun": 4,
         "crun_compare": false,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR shallow-hot-jupiter shallow-hot-jupiter uniform 32 33"
     }) %}
@@ -115,9 +122,9 @@
         "DT": 1200,
         "mpi_parts": 216,
         "tsteps": 86400,
-        "crun": 40,
+        "crun": 4,
         "crun_compare": false,
-        "wallclock": 20,
+        "wallclock": 120,
         "kgo_checks": [],
         "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR shallow-hot-jupiter shallow-hot-jupiter uniform 32 33"
     }) %}
@@ -134,7 +141,7 @@
         "crun_compare": false,
         "wallclock": 180,
         "kgo_checks": [],
-        "plot_str": "pplot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR deep-hot-jupiter deep-hot-jupiter uniform 32 33"
+        "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR deep-hot-jupiter deep-hot-jupiter uniform 32 33"
     }) %}
 
 {% elif task_ns.conf_name == "exo-dhj-C48_MG" %}
@@ -149,7 +156,7 @@
         "crun_compare": false,
         "wallclock": 180,
         "kgo_checks": [],
-        "plot_str": "pplot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR deep-hot-jupiter deep-hot-jupiter uniform 32 33"
+        "plot_str": "plot_zonal.py $NODAL_DATA_DIR/lfric_averages.nc $PLOT_DIR deep-hot-jupiter deep-hot-jupiter uniform 32 33"
     }) %}
 
 {% endif %}
