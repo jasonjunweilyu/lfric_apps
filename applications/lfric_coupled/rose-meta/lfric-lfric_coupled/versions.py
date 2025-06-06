@@ -304,3 +304,23 @@ class vn21_t596(MacroUpgrade):
         )
 
         return config, self.reports
+
+
+class vn21_t742(MacroUpgrade):
+    """Upgrade macro for ticket #742 by Shusuke Nishimoto."""
+
+    BEFORE_TAG = "vn2.1_t596"
+    AFTER_TAG = "vn2.1_t742"
+
+    def upgrade(self, config, meta_config=None):
+        # Commands From: rose-meta/um-boundary_layer
+        cv_scheme = self.get_setting_value(
+            config, ["namelist:convection", "cv_scheme"]
+        )
+        if cv_scheme == "'lambert_lewis'":
+            bl_res_inv = "'off'"
+        else:
+            bl_res_inv = "'cosine_inv_flux'"
+        self.add_setting(config, ["namelist:blayer", "bl_res_inv"], bl_res_inv)
+
+        return config, self.reports

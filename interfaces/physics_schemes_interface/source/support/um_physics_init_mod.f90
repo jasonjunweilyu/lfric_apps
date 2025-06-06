@@ -67,6 +67,10 @@ module um_physics_init_mod
                                         kprof_cu_in => kprof_cu,               &
                                         kprof_cu_buoy_integ,                   &
                                         kprof_cu_buoy_integ_low,               &
+                                        bl_res_inv_in => bl_res_inv,           &
+                                        bl_res_inv_off,                        &
+                                        bl_res_inv_cosine_inv_flux,            &
+                                        bl_res_inv_target_inv_profile,         &
                                         ng_stress_in => ng_stress,             &
                                         ng_stress_BG97_limited,                &
                                         ng_stress_BG97_original,               &
@@ -319,7 +323,7 @@ contains
          dzrad_disc_opt, dzrad_ntm1, dzrad_1p5dz,                          &
          sc_diag_opt, sc_diag_orig, sc_diag_cu_relax, sc_diag_cu_rh_max,   &
          sc_diag_all_rh_max,                                               &
-         bl_res_inv, blending_option,                                      &
+         bl_res_inv, cosine_inv_flux, target_inv_profile, blending_option, &
          a_ent_shr_nml, alpha_cd, puns, pstb, kprof_cu,                    &
          non_local_bl, flux_bc_opt, i_bl_vn_9c, sharp_sea_mes_land,        &
          lem_conven, to_sharp_across_1km, off, on, DynDiag_Ribased,        &
@@ -611,7 +615,6 @@ contains
       allocate(alpha_cd(bl_levels))
       alpha_cd      = 1.5_r_um
       alpha_cd(1)   = 2.0_r_um
-      bl_res_inv    = on
 
       select case (cbl_opt)
         case(cbl_opt_conventional)
@@ -691,6 +694,15 @@ contains
           kprof_cu = buoy_integ
         case(kprof_cu_buoy_integ_low)
           kprof_cu = buoy_integ_low
+      end select
+
+      select case(bl_res_inv_in)
+        case(bl_res_inv_off)
+          bl_res_inv = off
+        case(bl_res_inv_cosine_inv_flux)
+          bl_res_inv = cosine_inv_flux
+        case(bl_res_inv_target_inv_profile)
+          bl_res_inv = target_inv_profile
       end select
 
       select case(ng_stress_in)
@@ -945,7 +957,6 @@ contains
         i_convection_vn   = i_cv_llcs
         non_local_bl      = off
         ng_stress         = off
-        bl_res_inv        = off
         if ( scheme == scheme_pc2 ) then
           ! If pc2, we detrain some cloud
           llcs_cloud_precip = llcs_opt_crit_condens

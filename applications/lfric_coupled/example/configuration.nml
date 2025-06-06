@@ -23,6 +23,7 @@ fixed_flux_h=300.0,
 flux_bc_opt='specified_scalars',
 free_atm_mix='to_sharp',
 fric_heating=.true.,
+bl_res_inv='cosine_inv_flux',
 l_converge_ga=.false.,
 l_use_sml_dsc_fixes=.false.,
 near_neut_z_on_l=1.6
