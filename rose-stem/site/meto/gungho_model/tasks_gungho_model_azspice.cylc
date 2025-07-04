@@ -11,6 +11,12 @@
         "wallclock": 40,
     }) %}
 
+{% elif task_ns.conf_name == "sbr-alt2-C24_MG_op" %}
+
+    {% do task_dict.update({
+        "wallclock": 45,
+    }) %}
+
 {% endif %}
 
 {% do LOG.debug("Finised in site/meto/gungho_model/tasks_gungho_model_azspice.cylc") %}
