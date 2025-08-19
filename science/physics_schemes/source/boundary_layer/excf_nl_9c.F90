@@ -3146,12 +3146,19 @@ if (flux_grad  ==  LockWhelan2006) then
                                    **one_third
             w_h_tq = w_m_neut/pr_neut
 
+            ! The calculations below involve v_s**4. In very rare circumstances
+            ! v_s can be order(10^-11), therefore v_s**4 is order(10^-44)
+            ! which is outside the range of single precision calculations
+            ! Hence we create a double precision version to enforce the correct
+            ! calculation
+            v_s_dbl(i,j) = v_s(i,j)
+
             ! Turbulent Prandtl number and velocity scale for scalars
 
             Prandtl = pr_neut*                                                 &
-            ( v_s(i,j)*v_s(i,j)*v_s(i,j)*v_s(i,j) +                            &
+            ( v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j) +            &
              (one/(c_ws*25.0_r_bl))*w_s_cubed_tq*w_m_neut ) /                  &
-            ( v_s(i,j)*v_s(i,j)*v_s(i,j)*v_s(i,j) +                            &
+            ( v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j) +            &
              (one/(c_ws*25.0_r_bl))*(pr_neut/pr_conv)*w_s_cubed_tq*            &
              w_m_neut )
 
@@ -3283,11 +3290,19 @@ else
             w_m_tq = (v_s(i,j)*v_s(i,j)*v_s(i,j) + w_s_cubed_tq)               &
                                    **one_third
 
+            ! The calculations below involve v_s**4. In very rare circumstances
+            ! v_s can be order(10^-11), therefore v_s**4 is order(10^-44)
+            ! which is outside the range of single precision calculations
+            ! Hence we create a double precision version to enforce the correct
+            ! calculation
+            v_s_dbl(i,j) = v_s(i,j)
+
             !           Turbulent Prandtl number and velocity scale for scalars
 
-            Prandtl = pr_neut*( v_s(i,j)*v_s(i,j)*v_s(i,j)*v_s(i,j) +          &
+            Prandtl = pr_neut*                                                 &
+               ( v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j) +         &
                (one/(c_ws*25.0_r_bl))*w_s_cubed_uv*w_m_uv ) /                  &
-                              ( v_s(i,j)*v_s(i,j)*v_s(i,j)*v_s(i,j) +          &
+               ( v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j)*v_s_dbl(i,j) +         &
                (one/(c_ws*25.0_r_bl))*(pr_neut/pr_conv)*w_s_cubed_uv*          &
                w_m_uv )
             w_h_uv = w_m_uv / Prandtl
