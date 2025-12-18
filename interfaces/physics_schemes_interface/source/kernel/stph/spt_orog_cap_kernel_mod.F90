@@ -68,20 +68,20 @@ contains
   !> @param[in]     spt_orog_forcing_pattern_thresh        spt_orog_forcing_pattern_thresh in stochastic_physics_config_mod
   !> @param[in]     spt_stddev_orog_thres                  spt_stddev_orog_thres in stochastic_physics_config_mod
 
-  subroutine spt_orog_cap_code(nlayers,  &
-                               dX,       &
-                               fp_spt,   &
-                               sd_orog,  &
-                               spt_level_bottom,                 &
-                               spt_level_top,                    &
-                               spt_orog_forcing_pattern_thresh,  &
-                               spt_stddev_orog_thres,            &
-                               ndf_wth,  &
-                               undf_wth, &
-                               map_wth,  &
-                               ndf_2d,   &
-                               undf_2d,  &
-                               map_2d    &
+  subroutine spt_orog_cap_code(nlayers,                         &
+                               dX,                              &
+                               fp_spt,                          &
+                               sd_orog,                         &
+                               spt_level_bottom,                &
+                               spt_level_top,                   &
+                               spt_orog_forcing_pattern_thresh, &
+                               spt_stddev_orog_thres,           &
+                               ndf_wth,                         &
+                               undf_wth,                        &
+                               map_wth,                         &
+                               ndf_2d,                          &
+                               undf_2d,                         &
+                               map_2d                           &
                                )
 
     implicit none

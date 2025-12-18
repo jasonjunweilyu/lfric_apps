@@ -59,16 +59,16 @@ module spt_moisture_conservation_kernel_mod
     !> @param[in]     spt_level_bottom      Bottom level of the stochastic scheme
     !> @param[in]     spt_level_top         Top level of the stochastic scheme
 
-    subroutine spt_moisture_conservation_code(nlayers,  &
-                                              dmv,      &
-                                              mv,       &
-                                              rho_wth,  &
-                                              dz_wth,   &
-                                              spt_level_bottom,   &
-                                              spt_level_top,      &
-                                              ndf_wth,  &
-                                              undf_wth, &
-                                              map_wth   &
+    subroutine spt_moisture_conservation_code(nlayers,          &
+                                              dmv,              &
+                                              mv,               &
+                                              rho_wth,          &
+                                              dz_wth,           &
+                                              spt_level_bottom, &
+                                              spt_level_top,    &
+                                              ndf_wth,          &
+                                              undf_wth,         &
+                                              map_wth           &
                                               )
 
       implicit none
