@@ -23,12 +23,12 @@ from psyclone.transformations import (
     Dynamo0p3ColourTrans, Dynamo0p3OMPLoopTrans,
     Dynamo0p3RedundantComputationTrans, OMPParallelTrans,
     ACCParallelTrans, ACCLoopTrans, ACCRoutineTrans,
-    OMPDeclareTargetTrans, OMPLoopTrans, ACCEnterDataTrans)
+    OMPDeclareTargetTrans, OMPLoopTrans)
 from psyclone.domain.common.transformations import KernelModuleInlineTrans
 
 
 # Names of any invoke that we won't add any GPU offloading
-INVOKE_EXCLUSIONS = [ 
+INVOKE_EXCLUSIONS = [
 ]
 
 # Names of any kernel that we won't add parallelization
@@ -45,7 +45,7 @@ OFFLOAD_DIRECTIVES = os.getenv('LFRIC_OFFLOAD_DIRECTIVES', "none")
 def trans(psyir):
     '''Applies PSyclone colouring and GPU offloading transformations. Any
     kernels that cannot be offloaded to GPU are parallelised using OpenMP
-    on the CPU if they can be parallelised. Any setval_* kernels are 
+    on the CPU if they can be parallelised. Any setval_* kernels are
     transformed so as to compute into the L1 halos.
 
     :param psyir: the PSyIR of the PSy-layer.
@@ -72,7 +72,6 @@ def trans(psyir):
         gpu_annotation_trans = OMPDeclareTargetTrans()
     elif OFFLOAD_DIRECTIVES == "acc":
         # Use OpenACC offloading
-        enter_data_trans = ACCEnterDataTrans()
         loop_offloading_trans = ACCLoopTrans()
         kernels_trans = ACCKernelsTrans()
         gpu_region_trans = ACCParallelTrans(default_present=False)
@@ -80,9 +79,11 @@ def trans(psyir):
     elif OFFLOAD_DIRECTIVES == "none":
         pass
     else:
-        print(f"The PSyclone transformation script expects the "
-              f"LFRIC_OFFLOAD_DIRECTIVES to be set to 'omp' or 'acc' or 'none'"
-              f"but found '{OFFLOAD_DIRECTIVES}'.")
+        print(
+            f"The PSyclone transformation script expects the "
+            f"LFRIC_OFFLOAD_DIRECTIVES to be set to 'omp' or 'acc' or "
+            f"'none' but found '{OFFLOAD_DIRECTIVES}'."
+        )
         sys.exit(-1)
 
     print(f"PSy name = '{psyir.name}'")
@@ -99,8 +100,13 @@ def trans(psyir):
                     if loop.kernels()[0].name in ["setval_c"]:
                         rtrans.apply(loop, options={"depth": 1})
 
-        if (psyir.name.lower() in INVOKE_EXCLUSIONS) or (OFFLOAD_DIRECTIVES == "none"):
-            print(f"Not adding GPU offloading to invoke '{subroutine.name}'")
+        if (
+            psyir.name.lower() in INVOKE_EXCLUSIONS
+            or OFFLOAD_DIRECTIVES == "none"
+        ):
+            print(
+                f"Not adding GPU offloading to invoke '{subroutine.name}'"
+            )
             offload = False
         else:
             offload = True
@@ -123,44 +129,65 @@ def trans(psyir):
             if loop.iteration_space.endswith("cell_column"):
                 if offload:
                     for kern in loop.kernels():
-                        if kern.name.lower() in (GPU_KERNEL_EXCLUSIONS + KERNEL_EXCLUSIONS + list(succeeded_offload)):
-                           continue
-                        else:
+                        if kern.name.lower() in (
+                            GPU_KERNEL_EXCLUSIONS + KERNEL_EXCLUSIONS +
+                            list(succeeded_offload)
+                        ):
+                            continue
+
+                        try:
+                            gpu_annotation_trans.apply(
+                                kern, options={'force': True}
+                            )
+                            print(f"GPU-annotated kernel '{kern.name}'")
+
                             try:
-                                gpu_annotation_trans.apply(kern, options={'force': True})
-                                print(f"GPU-annotated kernel '{kern.name}'")
-                                try:
-                                    inline_trans.apply(kern)
-                                    print(f"Module-inlined kernel '{kern.name}'")
-                                    succeeded_offload.add(kern.name.lower())
-                                except TransformationError as err:
-                                    print(f"Failed to module-inline '{kern.name}' due "
-                                        f"to:\n{err.value}")
+                                inline_trans.apply(kern)
+                                print(f"Module-inlined kernel '{kern.name}'")
+                                succeeded_offload.add(kern.name.lower())
                             except TransformationError as err:
-                                failed_to_offload.add(kern.name.lower())
-                                print(f"Failed to annotate '{kern.name}' with "
-                                    f"GPU-enabled directive due to:\n"
-                                    f"{err.value}")
+                                print(
+                                    f"Failed to module-inline '{kern.name}'"
+                                    f" due to:\n{err.value}"
+                                )
+                        except TransformationError as err:
+                            failed_to_offload.add(kern.name.lower())
+                            print(
+                                f"Failed to annotate '{kern.name}' with "
+                                f"GPU-enabled directive due to:\n{err.value}"
+                            )
                         # For annotated or inlined kernels we could attempt to
                         # provide compile-time dimensions for the temporary
                         # arrays and convert to code unsupported intrinsics.
 
         # Add GPU offloading to loops unless they are over colours or are null.
         for loop in subroutine.walk(Loop):
-            kernel_names = [k.name.lower() for k in loop.kernels()]
-            if offload and all(name not in (list(failed_to_offload) + GPU_KERNEL_EXCLUSIONS 
-                               + KERNEL_EXCLUSIONS) for name in kernel_names):
+            kernel_names = [
+                k.name.lower() for k in loop.kernels()
+            ]
+            if offload and all(
+                name not in (
+                    list(failed_to_offload) + GPU_KERNEL_EXCLUSIONS +
+                    KERNEL_EXCLUSIONS
+                )
+                for name in kernel_names
+            ):
                 try:
                     if loop.loop_type == "colours":
                         pass
+
                     if loop.loop_type == "colour":
                         loop_offloading_trans.apply(
-                            loop, options={"independent": True})
+                            loop, options={"independent": True}
+                        )
                         gpu_region_trans.apply(loop.ancestor(Directive))
+
                     if loop.loop_type == "":
                         loop_offloading_trans.apply(
-                            loop, options={"independent": True})
-                        gpu_region_trans.apply(loop.ancestor(Directive))                        
+                            loop, options={"independent": True}
+                        )
+                        gpu_region_trans.apply(loop.ancestor(Directive))
+
                     if loop.loop_type == "dof":
                         # Loops over dofs can contains reductions
                         if kernels_trans:
@@ -168,29 +195,44 @@ def trans(psyir):
                             # manage them
                             kernels_trans.apply(loop)
                         else:
-                            # Otherwise, if the reductions exists, they will
-                            # be detected by the dependencyAnalysis and raise
-                            # a TransformationError captured below
+                            # Otherwise, if the reductions exists, they
+                            # will be detected by the dependencyAnalysis
+                            # and raise a TransformationError captured
+                            # below
                             loop_offloading_trans.apply(
-                                loop, options={"independent": True})
+                                loop, options={"independent": True}
+                            )
                             gpu_region_trans.apply(loop.ancestor(Directive))
-                        # Alternatively we could use loop parallelism with
-                        # reduction clauses
+
+                    # Alternatively we could use loop parallelism with
+                    # reduction clauses
                     print(f"Successfully offloaded loop with {kernel_names}")
                 except TransformationError as err:
-                    print(f"Failed to offload loop with {kernel_names} "
-                          f"because: {err}")
+                    print(
+                        f"Failed to offload loop with {kernel_names} "
+                        f"because: {err}"
+                    )
 
         # Apply OpenMP thread parallelism for any kernels we've not been able
         # to offload to GPU.
         for loop in subroutine.walk(Loop):
-            if any(kern.name.lower() in KERNEL_EXCLUSIONS for kern in loop.kernels()):
-               continue 
-            if not offload or any(kern.name.lower() in (list(failed_to_offload) + 
-                                  GPU_KERNEL_EXCLUSIONS) for
-                                  kern in loop.kernels()):
+            if any(
+                kern.name.lower() in KERNEL_EXCLUSIONS
+                for kern in loop.kernels()
+            ):
+                continue
+
+            if (
+                not offload
+                or any(
+                    kern.name.lower() in (
+                        list(failed_to_offload) + GPU_KERNEL_EXCLUSIONS
+                        )
+                    for kern in loop.kernels()
+                )
+            ):
                 if loop.loop_type not in ["colours", "null"]:
                     cpu_parallel.apply(loop)
                     otrans.apply(loop, options={"reprod": True})
-        
+
         print(subroutine.view())
