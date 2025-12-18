@@ -20,7 +20,7 @@ module skeb_biharm_diss_kernel_mod
   !> Kernel metadata for Psyclone
   type, public, extends(kernel_type) :: skeb_biharm_diss_kernel_type
     private
-    type(arg_type) :: meta_args(11) = (/                       &
+    type(arg_type) :: meta_args(11) = (/                      &
     arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                & ! ndisp
     arg_type(GH_FIELD, GH_REAL, GH_READ, W1),                 & ! vorticity
     arg_type(GH_FIELD, GH_REAL, GH_READ, W3, STENCIL(CROSS)), & ! divergence

@@ -60,16 +60,16 @@ contains
   !> @param[in]      spt_level_bottom      Bottom level of the stochastic scheme
   !> @param[in]      spt_level_top         Top level of the stochastic scheme
   !> @param[in]      dt                    Timestep from timestepping_config_mod
-  subroutine spt_convection_cfl_limit_cap_code(nlayers,     &
-                                               dX_conv_cfl, &
-                                               massflux_up, &
-                                               fp_spt,      &
-                                               pressure,    &
-                                               spt_level_bottom,   &
-                                               spt_level_top,      &
-                                               dt,                 &
-                                               ndf_wth,     &
-                                               undf_wth,    &
+  subroutine spt_convection_cfl_limit_cap_code(nlayers,          &
+                                               dX_conv_cfl,      &
+                                               massflux_up,      &
+                                               fp_spt,           &
+                                               pressure,         &
+                                               spt_level_bottom, &
+                                               spt_level_top,    &
+                                               dt,               &
+                                               ndf_wth,          &
+                                               undf_wth,         &
                                                map_wth)
 
     implicit none

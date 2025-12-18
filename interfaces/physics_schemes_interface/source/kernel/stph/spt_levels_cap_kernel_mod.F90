@@ -27,7 +27,7 @@ module spt_levels_cap_kernel_mod
   !>
   type, public, extends(kernel_type) :: spt_levels_cap_kernel_type
     private
-    type(arg_type) :: meta_args(5) = (/                &
+    type(arg_type) :: meta_args(5) = (/                 &
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, WTHETA), & !dX
          arg_type(GH_SCALAR, GH_INTEGER, GH_READ),      & ! spt_level_bottom
          arg_type(GH_SCALAR, GH_INTEGER, GH_READ),      & ! spt_level_top
@@ -59,15 +59,15 @@ contains
   !> @param[in]     spt_level_begin_tapering_bottom        spt_level_begin_tapering_bottom in stochastic_physics_config_mod
   !> @param[in]     spt_level_begin_tapering_top           spt_level_begin_tapering_top in stochastic_physics_config_mod
 
-  subroutine spt_levels_cap_code(nlayers,  &
-                                 dX,       &
-                                 spt_level_bottom,                 &
-                                 spt_level_top,                    &
-                                 spt_level_begin_tapering_bottom,  &
-                                 spt_level_begin_tapering_top,     &
-                                 ndf_wth,  &
-                                 undf_wth, &
-                                 map_wth   &
+  subroutine spt_levels_cap_code(nlayers,                         &
+                                 dX,                              &
+                                 spt_level_bottom,                &
+                                 spt_level_top,                   &
+                                 spt_level_begin_tapering_bottom, &
+                                 spt_level_begin_tapering_top,    &
+                                 ndf_wth,                         &
+                                 undf_wth,                        &
+                                 map_wth                          &
                                  )
 
     implicit none
