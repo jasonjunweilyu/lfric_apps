@@ -228,13 +228,17 @@ module spt_main_alg_mod
   real(kind=r_def) :: mlcrcp
   ! iterators in for loops
   integer(i_def) :: n,n_row, m
+
   ! Timestepping_config_mod scalar (for PSyclone to know data type)
   real(kind=r_second) :: timestepping_config_mod_dt
-  timestepping_config_mod_dt = dt_timestep
+
   ! Timing handle
   integer(tik)   :: id
 
+
   if ( LPROF ) call start_timing( id, 'spt_main_alg' )
+
+  timestepping_config_mod_dt = dt_timestep
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  1)  Create Forcing pattern  ||
