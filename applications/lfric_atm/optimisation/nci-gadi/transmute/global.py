@@ -7,3 +7,6 @@
 Placeholder script to ensure site is unaffected by changes.
 Owners of site target should update this as required.
 '''
+
+def trans(psyir):
+    pass
