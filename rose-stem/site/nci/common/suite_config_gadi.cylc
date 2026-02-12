@@ -22,6 +22,8 @@
           -l walltime=02:00:00
           -W umask=0022
           -l storage=gdata/access+gdata/hr22+gdata/ki32+scratch/access+gdata/{{environ.get('PROJECT','NO_PROJECT')}}
+        [[[environment]]]
+            PSYCLONE_TRANSMUTE_EXTRAS = -l off
 
     [[GADI_BUILD_INTEL]]
         inherit=GADI_BASE, GADI_BUILD_COMMON_INTEL
