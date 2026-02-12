@@ -23,7 +23,7 @@
           -W umask=0022
           -l storage=gdata/access+gdata/hr22+gdata/ki32+scratch/access+gdata/{{environ.get('PROJECT','NO_PROJECT')}}
         [[[environment]]]
-            PSYCLONE_TRANSMUTE_EXTRAS = -l off
+            PSYCLONE_TRANSMUTE_EXTRAS = -l all --backend disable-indentation
             VERBOSE = 1
 
     [[GADI_BUILD_INTEL]]
